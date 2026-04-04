@@ -1,10 +1,10 @@
 export default function LoginScreen({ onLogin }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-800 p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-950 p-4">
+      <div className="bg-slate-800 rounded-2xl shadow-xl p-8 max-w-sm w-full text-center border border-slate-700">
         <div className="text-5xl mb-4">💪</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Mike's Fitness</h1>
-        <p className="text-gray-500 mb-6">10-Year Health & Fitness Tracker</p>
+        <h1 className="text-2xl font-bold text-white mb-2">Mike's Fitness</h1>
+        <p className="text-slate-400 mb-6">10-Year Health & Fitness Tracker</p>
         <button
           onClick={onLogin}
           className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"

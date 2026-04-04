@@ -21,10 +21,10 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="text-center">
           <div className="text-4xl mb-2">💪</div>
-          <div className="text-gray-500">Loading...</div>
+          <div className="text-slate-400">Loading...</div>
         </div>
       </div>
     );
@@ -36,10 +36,10 @@ export default function App() {
 
   if (dataLoading || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="text-center">
           <div className="text-4xl mb-2">📊</div>
-          <div className="text-gray-500">Loading health data...</div>
+          <div className="text-slate-400">Loading health data...</div>
         </div>
       </div>
     );
@@ -66,7 +66,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-900">
       <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
       {renderSection()}
     </div>
