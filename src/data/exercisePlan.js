@@ -2,17 +2,17 @@
 export const exercisePlan = {
   formula: [
     "3 days strength",
-    "3 days cardio", 
+    "3 days cardio (including swimming)",
     "1 day long activity / fun",
     "Daily walking",
     "Daily mobility (10 min)",
   ],
-  
+
   weeklySchedule: [
     { day: "Monday", exercise: "Strength + short cardio", type: "strength", emoji: "💪" },
-    { day: "Tuesday", exercise: "Zone 2 cardio", type: "cardio", emoji: "🏃" },
+    { day: "Tuesday", exercise: "Zone 2 cardio (swim or run)", type: "cardio", emoji: "🏃" },
     { day: "Wednesday", exercise: "Strength", type: "strength", emoji: "💪" },
-    { day: "Thursday", exercise: "Zone 2 cardio", type: "cardio", emoji: "🏃" },
+    { day: "Thursday", exercise: "Swimming or Zone 2 cardio", type: "cardio", emoji: "🏊" },
     { day: "Friday", exercise: "Strength + short cardio", type: "strength", emoji: "💪" },
     { day: "Saturday", exercise: "Long cardio / fun activity", type: "long", emoji: "🚴" },
     { day: "Sunday", exercise: "Walk + mobility", type: "recovery", emoji: "🧘" },
@@ -40,6 +40,18 @@ export const exercisePlan = {
       { name: "Step-ups", sets: 3, reps: "10 each", id: "stepup" },
       { name: "Side plank", sets: 3, reps: "30 sec each", id: "sideplank" },
     ]
+  },
+
+  swimming: {
+    description: "Excellent Zone 2 cardio with zero joint impact",
+    benefits: ["Full-body workout", "Joint-friendly", "Builds endurance", "Great cross-training for triathlon"],
+    workouts: [
+      { name: "Endurance Swim", description: "Continuous laps at conversational pace", duration: "30-45 min", level: "zone2" },
+      { name: "Interval Swim", description: "100m fast / 50m easy × 8-10", duration: "30 min", level: "intervals" },
+      { name: "Distance Swim", description: "Build up to 1500m+ continuous", duration: "45-60 min", level: "long" },
+    ],
+    weeklyGoal: "2-3 sessions, 1500-2500 meters per session",
+    notes: "Count laps or use a swim tracker. Focus on form — long strokes, bilateral breathing.",
   },
 
   cardioZone2: {
@@ -85,4 +97,22 @@ export const trainingEvents = [
     color: '#2563eb',
     description: 'Triathlon at Wrightsville Beach',
   },
+];
+
+// Motivational quotes for the dashboard
+export const motivationalQuotes = [
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese proverb" },
+  { text: "Take care of your body. It's the only place you have to live.", author: "Jim Rohn" },
+  { text: "Discipline is choosing between what you want now and what you want most.", author: "Abraham Lincoln" },
+  { text: "The only bad workout is the one that didn't happen.", source: "" },
+  { text: "You don't have to be extreme, just consistent.", source: "" },
+  { text: "Health is not about the weight you lose, but about the life you gain.", source: "" },
+  { text: "Every workout is progress. Every healthy meal is a vote for the person you want to become.", source: "" },
+  { text: "The pain you feel today will be the strength you feel tomorrow.", source: "" },
+  { text: "Motivation gets you started. Habit keeps you going.", source: "" },
+  { text: "Your body can stand almost anything. It's your mind you have to convince.", source: "" },
+  { text: "Small daily improvements over time lead to stunning results.", author: "Robin Sharma" },
+  { text: "Don't count the days, make the days count.", author: "Muhammad Ali" },
+  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+  { text: "The groundwork for all happiness is good health.", author: "Leigh Hunt" },
 ];

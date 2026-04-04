@@ -11,11 +11,10 @@ import Plan from './pages/Plan';
 
 export default function App() {
   const { user, loading: authLoading, login, logout } = useAuth();
+  const healthData = useHealthData(user);
   const {
     data, loading: dataLoading,
-    addWeight, updateAppointment, addAppointment, deleteAppointment,
-    addLabResult, toggleDayCompletion, getWeekKey, toggleDailyItem,
-  } = useHealthData(user);
+  } = healthData;
 
   const [activeSection, setActiveSection] = useState('dashboard');
 
@@ -48,20 +47,17 @@ export default function App() {
   const renderSection = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <Dashboard data={data} toggleDayCompletion={toggleDayCompletion} getWeekKey={getWeekKey}
-          toggleDailyItem={toggleDailyItem} setActiveSection={setActiveSection} />;
+        return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
       case 'training':
-        return <Training data={data} toggleDayCompletion={toggleDayCompletion} getWeekKey={getWeekKey} />;
+        return <Training {...healthData} />;
       case 'health':
-        return <Health data={data} addWeight={addWeight} addLabResult={addLabResult} />;
+        return <Health {...healthData} />;
       case 'appointments':
-        return <Appointments data={data} updateAppointment={updateAppointment}
-          addAppointment={addAppointment} deleteAppointment={deleteAppointment} />;
+        return <Appointments {...healthData} />;
       case 'plan':
         return <Plan />;
       default:
-        return <Dashboard data={data} toggleDayCompletion={toggleDayCompletion} getWeekKey={getWeekKey}
-          toggleDailyItem={toggleDailyItem} setActiveSection={setActiveSection} />;
+        return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
     }
   };
 

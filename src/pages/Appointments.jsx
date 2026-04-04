@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { APPOINTMENT_TYPES } from '../constants';
 
-export default function Appointments({ data, updateAppointment, addAppointment, deleteAppointment }) {
+export default function Appointments({ data, updateAppointment, addAppointment, deleteAppointment, ...rest }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ type: '', doctor: '', date: '', time: '', location: '', notes: '', status: 'scheduled' });
   const todayStr = new Date().toISOString().split('T')[0];

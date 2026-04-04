@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { LAB_CATEGORIES } from '../constants';
 
-export default function Health({ data, addWeight, addLabResult }) {
+export default function Health({ data, addWeight, addLabResult, ...rest }) {
   const [view, setView] = useState('overview'); // 'overview' | 'weight' | 'labs' | 'meds'
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);

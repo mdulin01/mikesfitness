@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase-config';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { COLLECTIONS } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 
@@ -15,50 +15,11 @@ const defaultData = {
   labResults: [],
   // Appointments
   appointments: [
-    {
-      id: 'gi-may-2026',
-      type: 'gi',
-      doctor: 'GI Doctor',
-      date: '2026-05-18',
-      time: '',
-      location: '',
-      notes: '',
-      status: 'scheduled',
-    },
-    {
-      id: 'primary-jul-2026',
-      type: 'primary',
-      doctor: 'Primary Care',
-      date: '2026-07-17',
-      time: '',
-      location: '',
-      notes: '',
-      status: 'scheduled',
-    },
-    {
-      id: 'cardiology-tbd',
-      type: 'cardiology',
-      doctor: '',
-      date: '',
-      notes: 'Need to schedule',
-      status: 'needs-scheduling',
-    },
-    {
-      id: 'dentist-tbd',
-      type: 'dentist',
-      doctor: '',
-      date: '',
-      notes: 'Need to schedule',
-      status: 'needs-scheduling',
-    },
-    {
-      id: 'derm-tbd',
-      type: 'dermatology',
-      doctor: '',
-      date: '',
-      notes: 'Need to schedule',
-      status: 'needs-scheduling',
-    },
+    { id: 'gi-may-2026', type: 'gi', doctor: 'GI Doctor', date: '2026-05-18', time: '', location: '', notes: '', status: 'scheduled' },
+    { id: 'primary-jul-2026', type: 'primary', doctor: 'Primary Care', date: '2026-07-17', time: '', location: '', notes: '', status: 'scheduled' },
+    { id: 'cardiology-tbd', type: 'cardiology', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    { id: 'dentist-tbd', type: 'dentist', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    { id: 'derm-tbd', type: 'dermatology', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
   ],
   // Medications
   medications: [],
@@ -69,6 +30,34 @@ const defaultData = {
   weeklyCompletions: {},
   // Daily checklist: { '2026-04-04': { steps: true, mobility: true, sleep: true } }
   dailyChecklist: {},
+
+  // ========== NEW FEATURES ==========
+
+  // Medication daily check-ins: { '2026-04-04': { 'Rosuvastatin 5 mg': true, ... } }
+  medicationChecks: {},
+
+  // Meal log: { '2026-04-04': [{ id, time, type, description, notes }] }
+  mealLog: {},
+
+  // Monthly goals: { '2026-04': { goals: [...], dailyChecks: { '2026-04-04': { goalId: true } } } }
+  monthlyGoals: {
+    '2026-04': {
+      goals: [
+        { id: 'no-alcohol', label: 'No Alcohol', emoji: '🚫🍺' },
+        { id: 'no-sweets', label: 'No Sweets/Desserts', emoji: '🚫🍰' },
+      ],
+      dailyChecks: {},
+    },
+  },
+
+  // Week notes/comments for training weeks: { '2026-W14': { notes: '', highlights: '' } }
+  weekNotes: {},
+
+  // Streaks tracking
+  streaks: { currentWorkout: 0, bestWorkout: 0, currentDaily: 0, bestDaily: 0 },
+
+  // Swimming log: [{ id, date, laps, distance, duration, notes }]
+  swimmingLog: [],
 };
 
 export const useHealthData = (user) => {
@@ -84,7 +73,6 @@ export const useHealthData = (user) => {
       if (snap.exists()) {
         setData({ ...defaultData, ...snap.data() });
       } else {
-        // Initialize with defaults
         setDoc(docRef, stripUndefined(defaultData));
         setData(defaultData);
       }
@@ -172,12 +160,101 @@ export const useHealthData = (user) => {
     save({ dailyChecklist: checklist });
   }, [data, save]);
 
+  // ========== MEDICATION CHECK-INS ==========
+  const toggleMedCheck = useCallback((dateStr, medName) => {
+    const checks = { ...(data?.medicationChecks || {}) };
+    if (!checks[dateStr]) checks[dateStr] = {};
+    checks[dateStr][medName] = !checks[dateStr][medName];
+    setData(d => ({ ...d, medicationChecks: checks }));
+    save({ medicationChecks: checks });
+  }, [data, save]);
+
+  // ========== MEAL LOG ==========
+  const addMeal = useCallback((dateStr, meal) => {
+    const log = { ...(data?.mealLog || {}) };
+    if (!log[dateStr]) log[dateStr] = [];
+    log[dateStr] = [...log[dateStr], { ...meal, id: Date.now() }];
+    setData(d => ({ ...d, mealLog: log }));
+    save({ mealLog: log });
+  }, [data, save]);
+
+  const deleteMeal = useCallback((dateStr, mealId) => {
+    const log = { ...(data?.mealLog || {}) };
+    if (log[dateStr]) {
+      log[dateStr] = log[dateStr].filter(m => m.id !== mealId);
+    }
+    setData(d => ({ ...d, mealLog: log }));
+    save({ mealLog: log });
+  }, [data, save]);
+
+  // ========== MONTHLY GOALS ==========
+  const getMonthKey = (date = new Date()) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const addMonthlyGoal = useCallback((monthKey, goal) => {
+    const goals = { ...(data?.monthlyGoals || {}) };
+    if (!goals[monthKey]) goals[monthKey] = { goals: [], dailyChecks: {} };
+    goals[monthKey].goals = [...goals[monthKey].goals, { ...goal, id: goal.id || `goal-${Date.now()}` }];
+    setData(d => ({ ...d, monthlyGoals: goals }));
+    save({ monthlyGoals: goals });
+  }, [data, save]);
+
+  const removeMonthlyGoal = useCallback((monthKey, goalId) => {
+    const goals = { ...(data?.monthlyGoals || {}) };
+    if (goals[monthKey]) {
+      goals[monthKey].goals = goals[monthKey].goals.filter(g => g.id !== goalId);
+    }
+    setData(d => ({ ...d, monthlyGoals: goals }));
+    save({ monthlyGoals: goals });
+  }, [data, save]);
+
+  const toggleMonthlyGoalCheck = useCallback((monthKey, dateStr, goalId) => {
+    const goals = { ...(data?.monthlyGoals || {}) };
+    if (!goals[monthKey]) goals[monthKey] = { goals: [], dailyChecks: {} };
+    if (!goals[monthKey].dailyChecks) goals[monthKey].dailyChecks = {};
+    if (!goals[monthKey].dailyChecks[dateStr]) goals[monthKey].dailyChecks[dateStr] = {};
+    goals[monthKey].dailyChecks[dateStr][goalId] = !goals[monthKey].dailyChecks[dateStr][goalId];
+    setData(d => ({ ...d, monthlyGoals: goals }));
+    save({ monthlyGoals: goals });
+  }, [data, save]);
+
+  // ========== WEEK NOTES ==========
+  const saveWeekNotes = useCallback((weekKey, notes) => {
+    const weekNotes = { ...(data?.weekNotes || {}) };
+    weekNotes[weekKey] = { ...(weekNotes[weekKey] || {}), ...notes, updatedAt: new Date().toISOString() };
+    setData(d => ({ ...d, weekNotes: weekNotes }));
+    save({ weekNotes: weekNotes });
+  }, [data, save]);
+
+  // ========== SWIMMING LOG ==========
+  const addSwimEntry = useCallback((entry) => {
+    const log = [...(data?.swimmingLog || []), { ...entry, id: Date.now() }];
+    log.sort((a, b) => b.date.localeCompare(a.date));
+    setData(d => ({ ...d, swimmingLog: log }));
+    save({ swimmingLog: log });
+  }, [data, save]);
+
+  // ========== EDIT DAILY CHECKLIST ITEMS ==========
+  const updateDailyItems = useCallback((items) => {
+    setData(d => ({ ...d, customDailyItems: items }));
+    save({ customDailyItems: items });
+  }, [save]);
+
   return {
     data, loading, save,
-    addWeight, 
+    addWeight,
     updateAppointment, addAppointment, deleteAppointment,
     addLabResult,
     toggleDayCompletion, getWeekKey,
     toggleDailyItem,
+    // New
+    toggleMedCheck,
+    addMeal, deleteMeal,
+    getMonthKey, addMonthlyGoal, removeMonthlyGoal, toggleMonthlyGoalCheck,
+    saveWeekNotes,
+    addSwimEntry,
+    updateDailyItems,
   };
 };
