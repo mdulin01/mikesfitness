@@ -188,7 +188,14 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
 
   const submitSwim = (e) => {
     e.preventDefault();
-    if (!swimForm.laps && !swimForm.distance) return;
+    if (!swimForm.laps && !swimForm.distance) {
+      alert('Please enter laps or distance');
+      return;
+    }
+    if (!swimForm.duration) {
+      alert('Please enter duration');
+      return;
+    }
     addSwimEntry({
       ...swimForm,
       laps: swimForm.laps ? parseInt(swimForm.laps) : null,
@@ -328,8 +335,21 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
                 <div className="text-xs text-slate-400 mb-1">Zone 2</div>
-                <div className="text-lg font-bold text-white">—</div>
-                <div className="text-xs text-slate-500">Manual track</div>
+                <div className="text-lg font-bold text-white mb-2">
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={data?.weeklyZone2?.[currentWeekKey] || ''}
+                    onChange={e => {
+                      const zone2 = { ...(data?.weeklyZone2 || {}) };
+                      zone2[currentWeekKey] = parseInt(e.target.value) || 0;
+                      rest.save?.({ weeklyZone2: zone2 });
+                    }}
+                    className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white text-center"
+                  />
+                  <span className="ml-1">min</span>
+                </div>
+                <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.zone2Minutes}</div>
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
                 <div className="text-xs text-slate-400 mb-1">Intervals</div>
