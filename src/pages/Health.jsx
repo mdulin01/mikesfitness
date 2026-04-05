@@ -118,6 +118,15 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                   </div>
                 </div>
               ))}
+              {healthPlan.supplements.map(sup => (
+                <div key={sup.name} className="flex items-start gap-3 p-2 bg-slate-700/50 rounded text-sm">
+                  <span className="text-lg">🧪</span>
+                  <div>
+                    <div className="font-medium text-white">{sup.name}</div>
+                    <div className="text-xs text-slate-400">{sup.why}</div>
+                  </div>
+                </div>
+              ))}
             </div>
             <p className="text-xs text-slate-500 mt-3">Discuss with your physician before starting any medications.</p>
           </div>
@@ -232,6 +241,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
 
       {view === 'meds' && (
         <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Medications</h3>
           {healthPlan.medications.map(med => (
             <div key={med.name} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
               <div className="flex items-start gap-3">
@@ -240,6 +250,18 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                   <div className="font-medium text-white">{med.name}</div>
                   <div className="text-sm text-slate-400 mt-1">{med.why}</div>
                   <span className="inline-block mt-2 text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full">{med.category}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide pt-2">Supplements</h3>
+          {healthPlan.supplements.map(sup => (
+            <div key={sup.name} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🧪</span>
+                <div>
+                  <div className="font-medium text-white">{sup.name}</div>
+                  <div className="text-sm text-slate-400 mt-1">{sup.why}</div>
                 </div>
               </div>
             </div>

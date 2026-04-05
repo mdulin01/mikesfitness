@@ -7,10 +7,11 @@ export const COLLECTIONS = {
 
 export const SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', emoji: '📊' },
+  { id: 'nutrition', label: 'Nutrition', emoji: '🥗' },
   { id: 'training', label: 'Training', emoji: '🏋️' },
   { id: 'health', label: 'Health', emoji: '❤️' },
-  { id: 'appointments', label: 'Appointments', emoji: '🏥' },
-  { id: 'plan', label: '10-Year Plan', emoji: '🎯' },
+  { id: 'appointments', label: 'Appts', emoji: '🏥' },
+  { id: 'plan', label: 'Plan', emoji: '🎯' },
 ];
 
 export const APPOINTMENT_TYPES = [
@@ -31,4 +32,11 @@ export const LAB_CATEGORIES = [
   { id: 'vitamins', label: 'Vitamins', markers: ['Vitamin D'] },
   { id: 'metabolic', label: 'Metabolic', markers: ['Fasting Glucose', 'HbA1c'] },
   { id: 'other', label: 'Other', markers: ['Lp(a)', 'PSA'] },
+];
+
+export const MEAL_TYPES = [
+  { id: 'breakfast', label: 'Breakfast', emoji: '🌅' },
+  { id: 'lunch', label: 'Lunch', emoji: '☀️' },
+  { id: 'dinner', label: 'Dinner', emoji: '🌙' },
+  { id: 'snack', label: 'Snack', emoji: '🍎' },
 ];

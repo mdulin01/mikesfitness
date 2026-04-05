@@ -20,9 +20,9 @@ export default function Plan() {
         </div>
       </div>
 
-      {/* Medications */}
+      {/* Medications & Supplements */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <h2 className="font-semibold text-white mb-3">2. Prevention Stack (Medications)</h2>
+        <h2 className="font-semibold text-white mb-3">2. Prevention Stack (Meds & Supplements)</h2>
         <p className="text-xs text-slate-400 mb-3">Common longevity medicine stack. Discuss with your physician.</p>
         <div className="space-y-2">
           {healthPlan.medications.map(m => (
@@ -32,6 +32,15 @@ export default function Plan() {
                 <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">{m.category}</span>
               </div>
               <span className="text-slate-400 text-right">{m.why}</span>
+            </div>
+          ))}
+          {healthPlan.supplements.map(s => (
+            <div key={s.name} className="flex justify-between items-start p-3 bg-slate-700/50 rounded-lg text-sm">
+              <div>
+                <div className="font-medium text-white">🧪 {s.name}</div>
+                <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">supplement</span>
+              </div>
+              <span className="text-slate-400 text-right">{s.why}</span>
             </div>
           ))}
         </div>

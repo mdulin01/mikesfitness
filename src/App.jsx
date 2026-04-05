@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Training from './pages/Training';
 import Health from './pages/Health';
 import Appointments from './pages/Appointments';
+import Nutrition from './pages/Nutrition';
 import Plan from './pages/Plan';
 
 export default function App() {
@@ -48,6 +49,8 @@ export default function App() {
     switch (activeSection) {
       case 'dashboard':
         return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
+      case 'nutrition':
+        return <Nutrition {...healthData} />;
       case 'training':
         return <Training {...healthData} />;
       case 'health':
