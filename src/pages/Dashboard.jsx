@@ -143,7 +143,7 @@ export default function Dashboard({
           <h1 className="text-2xl font-bold text-white">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, Mike
           </h1>
-          <p className="text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p className="text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} <span className="text-slate-600 text-xs">v3</span></p>
         </div>
         {streak > 0 && (
           <div className="bg-gradient-to-br from-orange-500 to-red-600 px-3 py-2 rounded-xl text-center">

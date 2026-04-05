@@ -68,7 +68,10 @@ function migrateUTCDateKeys(snapData, docRef) {
   }
 
   if (changed) {
-    console.log('[migration-v2] Merging UTC-keyed data from', wrongDate, 'into', correctDate);
+    console.log('[migration-v2] Merging UTC-keyed data from', wrongDate, 'into', correctDate, updates);
+  } else {
+    console.log('[migration-v2] No data found under', wrongDate, 'to migrate. Fields checked:',
+      [...OBJ_FIELDS, ...ARR_FIELDS].map(f => `${f}: ${JSON.stringify(Object.keys(snapData[f] || {}))}`));
   }
   // Always persist the flag (and any data changes)
   setDoc(docRef, stripUndefined(updates), { merge: true }).catch(console.error);
