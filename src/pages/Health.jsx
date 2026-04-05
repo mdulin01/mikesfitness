@@ -20,11 +20,18 @@ function BloodPressureForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    if (!systolic || !diastolic) return;
-    save({ bpEntries: [...currentEntries, { id: Date.now(), date, systolic: parseInt(systolic), diastolic: parseInt(diastolic), value: parseInt(systolic) }] });
-    setSystolic(''); setDiastolic('');
+    const s = parseInt(systolic), d = parseInt(diastolic);
+    if (!s || !d) { setError('Enter both values'); return; }
+    if (s < 70 || s > 250) { setError('Systolic should be 70-250'); return; }
+    if (d < 40 || d > 150) { setError('Diastolic should be 40-150'); return; }
+    if (d >= s) { setError('Diastolic must be less than systolic'); return; }
+    setError('');
+    save({ bpEntries: [...currentEntries, { id: Date.now(), date, systolic: s, diastolic: d, value: s }] });
+    setSystolic(''); setDiastolic(''); setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -33,12 +40,15 @@ function BloodPressureForm({ save, currentEntries }) {
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
       <div className="grid grid-cols-2 gap-2">
-        <input type="number" placeholder="Systolic" value={systolic} onChange={(e) => setSystolic(e.target.value)}
+        <input type="number" placeholder="Systolic" value={systolic} onChange={(e) => { setSystolic(e.target.value); setError(''); }}
           className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
-        <input type="number" placeholder="Diastolic" value={diastolic} onChange={(e) => setDiastolic(e.target.value)}
+        <input type="number" placeholder="Diastolic" value={diastolic} onChange={(e) => { setDiastolic(e.target.value); setError(''); }}
           className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
       </div>
-      <button onClick={handleSave} className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium">Save</button>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button onClick={handleSave} className={`w-full py-2 rounded-lg text-white text-sm font-medium ${saved ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+        {saved ? '✓ Saved!' : 'Save'}
+      </button>
     </div>
   );
 }
@@ -47,11 +57,16 @@ function BloodPressureForm({ save, currentEntries }) {
 function RestingHeartRateForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [bpm, setBpm] = useState('');
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    if (!bpm) return;
-    save({ hrEntries: [...currentEntries, { id: Date.now(), date, bpm: parseInt(bpm), value: parseInt(bpm) }] });
-    setBpm('');
+    const v = parseInt(bpm);
+    if (!v) { setError('Enter a value'); return; }
+    if (v < 30 || v > 200) { setError('RHR should be 30-200 bpm'); return; }
+    setError('');
+    save({ hrEntries: [...currentEntries, { id: Date.now(), date, bpm: v, hr: v, value: v }] });
+    setBpm(''); setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -59,9 +74,12 @@ function RestingHeartRateForm({ save, currentEntries }) {
       <h3 className="text-sm font-semibold text-white">Log Resting HR</h3>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
-      <input type="number" placeholder="BPM" value={bpm} onChange={(e) => setBpm(e.target.value)}
+      <input type="number" placeholder="BPM" value={bpm} onChange={(e) => { setBpm(e.target.value); setError(''); }}
         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
-      <button onClick={handleSave} className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium">Save</button>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button onClick={handleSave} className={`w-full py-2 rounded-lg text-white text-sm font-medium ${saved ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+        {saved ? '✓ Saved!' : 'Save'}
+      </button>
     </div>
   );
 }
@@ -99,11 +117,16 @@ function RunPaceForm({ save, currentEntries }) {
 function VO2MaxForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [value, setValue] = useState('');
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    if (!value) return;
-    save({ vo2Entries: [...currentEntries, { id: Date.now(), date, value: parseFloat(value) }] });
-    setValue('');
+    const v = parseFloat(value);
+    if (!v) { setError('Enter a value'); return; }
+    if (v < 10 || v > 90) { setError('VO2 Max should be 10-90 ml/kg/min'); return; }
+    setError('');
+    save({ vo2Entries: [...currentEntries, { id: Date.now(), date, vo2max: v, value: v }] });
+    setValue(''); setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -111,9 +134,12 @@ function VO2MaxForm({ save, currentEntries }) {
       <h3 className="text-sm font-semibold text-white">Log VO2 Max</h3>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
-      <input type="number" placeholder="ml/kg/min" value={value} onChange={(e) => setValue(e.target.value)} step="0.1"
+      <input type="number" placeholder="ml/kg/min" value={value} onChange={(e) => { setValue(e.target.value); setError(''); }} step="0.1"
         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
-      <button onClick={handleSave} className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium">Save</button>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button onClick={handleSave} className={`w-full py-2 rounded-lg text-white text-sm font-medium ${saved ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+        {saved ? '✓ Saved!' : 'Save'}
+      </button>
     </div>
   );
 }
@@ -147,13 +173,20 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
     };
   }, [weightEntries]);
 
+  const [weightError, setWeightError] = useState('');
+
   const submitWeight = (e) => {
     e.preventDefault();
-    if (!weightForm.weight) return;
+    const w = parseFloat(weightForm.weight);
+    if (!w) { setWeightError('Enter weight'); return; }
+    if (w < 80 || w > 400) { setWeightError('Weight should be 80-400 lbs'); return; }
+    const bf = weightForm.bodyFat ? parseFloat(weightForm.bodyFat) : null;
+    if (bf !== null && (bf < 3 || bf > 60)) { setWeightError('Body fat should be 3-60%'); return; }
+    setWeightError('');
     addWeight({
       ...weightForm,
-      weight: parseFloat(weightForm.weight),
-      bodyFat: weightForm.bodyFat ? parseFloat(weightForm.bodyFat) : null,
+      weight: w,
+      bodyFat: bf,
       waist: weightForm.waist ? parseFloat(weightForm.waist) : null,
     });
     setWeightForm({ date: toLocalDateStr(), weight: '', bodyFat: '', waist: '', notes: '' });
@@ -411,6 +444,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
               <input type="text" placeholder="Notes" value={weightForm.notes}
                 onChange={e => setWeightForm(f => ({ ...f, notes: e.target.value }))}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              {weightError && <p className="text-xs text-red-400">{weightError}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowWeightModal(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>

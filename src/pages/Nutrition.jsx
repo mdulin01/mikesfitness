@@ -9,6 +9,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '' });
   const [activeTab, setActiveTab] = useState('log'); // 'log' | 'presets' | 'recipes' | 'shopping' | 'guide'
   const [shoppingInput, setShoppingInput] = useState('');
+  const [shoppingQty, setShoppingQty] = useState('');
   const [shoppingCategory, setShoppingCategory] = useState('produce');
   const [expandedRecipe, setExpandedRecipe] = useState(null);
 
@@ -116,8 +117,8 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const submitShoppingItem = (e) => {
     e.preventDefault();
     if (!shoppingInput.trim()) return;
-    addShoppingItem({ item: shoppingInput.trim(), category: shoppingCategory });
-    setShoppingInput('');
+    addShoppingItem({ item: shoppingInput.trim(), category: shoppingCategory, qty: shoppingQty.trim() || null });
+    setShoppingInput(''); setShoppingQty('');
   };
 
   // Navigate dates
@@ -613,17 +614,22 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       {activeTab === 'shopping' && (
         <div className="space-y-4">
           {/* Add item form */}
-          <form onSubmit={submitShoppingItem} className="flex gap-2">
-            <input type="text" placeholder="Add item..." value={shoppingInput}
-              onChange={e => setShoppingInput(e.target.value)}
-              className="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
-            <select value={shoppingCategory} onChange={e => setShoppingCategory(e.target.value)}
-              className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white w-28">
-              {SHOPPING_CATEGORIES.filter(c => c.id !== 'recipe').map(c => (
-                <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
-              ))}
-            </select>
-            <button type="submit" className="bg-green-600 text-white px-4 rounded-lg text-sm font-medium">+</button>
+          <form onSubmit={submitShoppingItem} className="space-y-2">
+            <div className="flex gap-2">
+              <input type="text" placeholder="Add item..." value={shoppingInput}
+                onChange={e => setShoppingInput(e.target.value)}
+                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              <input type="text" placeholder="Qty" value={shoppingQty || ''}
+                onChange={e => setShoppingQty(e.target.value)}
+                className="w-16 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400 text-center" />
+              <select value={shoppingCategory} onChange={e => setShoppingCategory(e.target.value)}
+                className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white w-28">
+                {SHOPPING_CATEGORIES.filter(c => c.id !== 'recipe').map(c => (
+                  <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                ))}
+              </select>
+              <button type="submit" className="bg-green-600 text-white px-4 rounded-lg text-sm font-medium">+</button>
+            </div>
           </form>
 
           {/* Quick add from Mediterranean staples */}
@@ -672,7 +678,9 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
                             }`}>
                             {item.checked && <span className="text-white text-[10px]">✓</span>}
                           </button>
-                          <span className={`text-sm flex-1 ${item.checked ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{item.item}</span>
+                          <span className={`text-sm flex-1 ${item.checked ? 'text-slate-500 line-through' : 'text-slate-300'}`}>
+                            {item.item}{item.qty && <span className="text-xs text-slate-500 ml-1">({item.qty})</span>}
+                          </span>
                           <button onClick={() => deleteShoppingItem(item.id)} className="text-slate-600 hover:text-red-400 text-xs p-1">×</button>
                         </div>
                       ))}

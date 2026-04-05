@@ -72,16 +72,43 @@ export default function TrendChart({ data, goalValue, color, label, unit, height
         ))}
       </svg>
 
-      {/* Current value badge */}
+      {/* Current value + trend indicator */}
       <div className="flex items-center justify-between mt-1 px-1">
         <span className="text-xs text-slate-400">
           Latest: <span className="font-semibold" style={{ color }}>{latest.value} {unit}</span>
+          {data.length >= 2 && (() => {
+            const prev = data[data.length - 2].value;
+            const diff = latest.value - prev;
+            const pctChange = prev !== 0 ? ((diff / prev) * 100).toFixed(1) : 0;
+            const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+            const trendColor = goalValue != null
+              ? (Math.abs(latest.value - goalValue) < Math.abs(prev - goalValue) ? '#22c55e' : '#ef4444')
+              : (diff > 0 ? '#f59e0b' : diff < 0 ? '#3b82f6' : '#64748b');
+            return (
+              <span style={{ color: trendColor }} className="ml-1.5 font-semibold">
+                {arrow} {Math.abs(pctChange)}%
+              </span>
+            );
+          })()}
           <span className="text-slate-600 ml-1">({new Date(latest.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})</span>
         </span>
         {goalValue != null && (
           <span className="text-xs text-green-500">Goal: {goalValue} {unit}</span>
         )}
       </div>
+      {/* Velocity (rate of change per year) */}
+      {data.length >= 3 && (() => {
+        const first = data[0];
+        const daysDiff = (new Date(latest.date) - new Date(first.date)) / (1000 * 60 * 60 * 24);
+        if (daysDiff < 30) return null;
+        const yearlyRate = ((latest.value - first.value) / daysDiff * 365).toFixed(1);
+        const direction = yearlyRate > 0 ? '+' : '';
+        return (
+          <div className="text-[10px] text-slate-500 px-1 mt-0.5">
+            Trend: {direction}{yearlyRate} {unit}/year over {(daysDiff / 365).toFixed(1)} years
+          </div>
+        );
+      })()}
     </div>
   );
 }

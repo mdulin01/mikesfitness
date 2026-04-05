@@ -348,26 +348,38 @@ function ImagingTab() {
 }
 
 // Tab 5: Vaccines
-function VaccinesTab() {
-  const vaccines = [
-    { name: 'COVID booster', frequency: 'Annual', completed: false },
-    { name: 'Flu', frequency: 'Annual', completed: false },
-    { name: 'Shingrix', frequency: '2 doses after 50', completed: false },
-    { name: 'Tdap', frequency: 'Every 10 years', completed: false },
-    { name: 'Pneumococcal', frequency: 'Consider with Crohn\'s/immunomodulators', completed: false },
-  ];
+const VACCINE_LIST = [
+  { id: 'covid', name: 'COVID booster', frequency: 'Annual' },
+  { id: 'flu', name: 'Flu', frequency: 'Annual' },
+  { id: 'shingrix', name: 'Shingrix', frequency: '2 doses after 50' },
+  { id: 'tdap', name: 'Tdap', frequency: 'Every 10 years' },
+  { id: 'pneumo', name: 'Pneumococcal', frequency: 'Consider with Crohn\'s/immunomodulators' },
+];
 
+function VaccinesTab({ vaccineStatus = {}, onToggleVaccine }) {
   return (
     <div className="space-y-3">
-      {vaccines.map((vax, i) => (
-        <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-start gap-3">
-          <input type="checkbox" checked={vax.completed} readOnly className="mt-1 w-4 h-4 rounded cursor-pointer accent-green-500" />
-          <div className="flex-1">
-            <h3 className="font-semibold text-white">{vax.name}</h3>
-            <p className="text-sm text-slate-400">{vax.frequency}</p>
+      {VACCINE_LIST.map(vax => {
+        const status = vaccineStatus[vax.id];
+        const done = status?.completed || false;
+        return (
+          <div key={vax.id} className={`border rounded-lg p-4 flex items-start gap-3 ${done ? 'bg-green-900/20 border-green-700' : 'bg-slate-800 border-slate-700'}`}>
+            <button onClick={() => onToggleVaccine?.(vax.id)}
+              className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                done ? 'border-green-500 bg-green-500' : 'border-slate-500 hover:border-blue-400'
+              }`}>{done && <span className="text-white text-xs">✓</span>}</button>
+            <div className="flex-1">
+              <h3 className={`font-semibold ${done ? 'text-green-400' : 'text-white'}`}>{vax.name}</h3>
+              <p className="text-sm text-slate-400">{vax.frequency}</p>
+              {status?.date && <p className="text-xs text-slate-500 mt-1">Last: {formatDate(status.date)}</p>}
+            </div>
+            {done && !status?.date && (
+              <input type="date" className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                onChange={e => onToggleVaccine?.(vax.id, e.target.value)} placeholder="Date" />
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -574,26 +586,58 @@ function HPRCTab() {
 // Main component
 export default function Medical({ data, save, addLabResult, ...rest }) {
   const [activeTab, setActiveTab] = useState('problems');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const vaccineStatus = data?.vaccineStatus || {};
+  const onToggleVaccine = (id, date) => {
+    const current = vaccineStatus[id] || {};
+    if (date) {
+      // Setting date on already-completed vaccine
+      save({ vaccineStatus: { ...vaccineStatus, [id]: { ...current, completed: true, date } } });
+    } else {
+      // Toggle completed
+      save({ vaccineStatus: { ...vaccineStatus, [id]: { ...current, completed: !current.completed } } });
+    }
+  };
 
   const tabs = [
-    { id: 'problems', label: 'Problems', icon: '⚕️', component: ProblemsTab },
-    { id: 'medications', label: 'Meds', icon: '💊', component: MedicationsTab },
-    { id: 'labs', label: 'Labs', icon: '🔬', component: LabsTab },
-    { id: 'imaging', label: 'Imaging', icon: '🖼️', component: ImagingTab },
-    { id: 'hprc', label: 'HPRC', icon: '🫘', component: HPRCTab },
-    { id: 'kidney', label: 'Kidney', icon: '🫘', component: KidneyTab },
-    { id: 'crohns', label: "Crohn's", icon: '🔬', component: CrohnsTab },
-    { id: 'vaccines', label: 'Vaccines', icon: '💉', component: VaccinesTab },
+    { id: 'problems', label: 'Problems', icon: '⚕️' },
+    { id: 'medications', label: 'Meds', icon: '💊' },
+    { id: 'labs', label: 'Labs', icon: '🔬' },
+    { id: 'imaging', label: 'Imaging', icon: '🖼️' },
+    { id: 'hprc', label: 'HPRC', icon: '🫘' },
+    { id: 'kidney', label: 'Kidney', icon: '🫘' },
+    { id: 'crohns', label: "Crohn's", icon: '🔬' },
+    { id: 'vaccines', label: 'Vaccines', icon: '💉' },
   ];
 
-  const ActiveComponent = tabs.find((t) => t.id === activeTab)?.component || ProblemsTab;
+  const renderTab = () => {
+    switch (activeTab) {
+      case 'problems': return <ProblemsTab />;
+      case 'medications': return <MedicationsTab />;
+      case 'labs': return <LabsTab />;
+      case 'imaging': return <ImagingTab />;
+      case 'hprc': return <HPRCTab />;
+      case 'kidney': return <KidneyTab />;
+      case 'crohns': return <CrohnsTab />;
+      case 'vaccines': return <VaccinesTab vaccineStatus={vaccineStatus} onToggleVaccine={onToggleVaccine} />;
+      default: return <ProblemsTab />;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-900 p-4 md:p-6 pb-24 md:pb-6">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Medical EHR</h1>
-          <p className="text-slate-400">Personal health records — Labcorp, Atrium Health, NIH Clinical Center</p>
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold text-white mb-1">Medical EHR</h1>
+          <p className="text-slate-400 text-sm">Labcorp, Atrium Health, NIH Clinical Center</p>
+        </div>
+
+        {/* Search */}
+        <div className="mb-4">
+          <input type="text" placeholder="Search labs, imaging, meds..." value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" />
         </div>
 
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -613,7 +657,7 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
         </div>
 
         <div>
-          <ActiveComponent />
+          {renderTab()}
         </div>
       </div>
     </div>
