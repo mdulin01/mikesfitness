@@ -67,6 +67,9 @@ const defaultData = {
 
   // Workout details per day: { '2026-W14': { monday: [{ type, distance, duration, notes }] } }
   workoutDetails: {},
+
+  // Exercise log: { '2026-04-04': [{ id, exercise, sets: [{ weight, reps }], notes }] }
+  exerciseLog: {},
 };
 
 export const useHealthData = (user) => {
@@ -261,6 +264,14 @@ export const useHealthData = (user) => {
     save({ workoutDetails: all });
   }, [data, save]);
 
+  // ========== EXERCISE LOG ==========
+  const saveExerciseLog = useCallback((dateStr, exercises) => {
+    const log = { ...(data?.exerciseLog || {}) };
+    log[dateStr] = exercises;
+    setData(d => ({ ...d, exerciseLog: log }));
+    save({ exerciseLog: log });
+  }, [data, save]);
+
   // ========== EDIT DAILY CHECKLIST ITEMS ==========
   const updateDailyItems = useCallback((items) => {
     setData(d => ({ ...d, customDailyItems: items }));
@@ -310,6 +321,8 @@ export const useHealthData = (user) => {
     updateDailyItems,
     // Workout details
     saveWorkoutDetail,
+    // Exercise log
+    saveExerciseLog,
     // Shopping list
     addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems,
   };
