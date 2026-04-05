@@ -80,7 +80,7 @@ export default function App() {
         <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
         {renderSection()}
         <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-          Made by Mike Dulin, MD · Build 8
+          Made by Mike Dulin, MD · Build 9
         </footer>
       </div>
     </ToastProvider>

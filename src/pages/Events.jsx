@@ -11,6 +11,8 @@ const EVENT_CATEGORIES = [
 
 export default function Events({ data, updateAppointment, addAppointment, deleteAppointment, ...rest }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingAppt, setEditingAppt] = useState(null); // appointment being edited
+  const [editForm, setEditForm] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [schedulingId, setSchedulingId] = useState(null);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -51,6 +53,36 @@ export default function Events({ data, updateAppointment, addAppointment, delete
     addAppointment({ ...form, category: eventType?.category || form.category });
     setForm({ type: '', category: 'medical', doctor: '', date: '', time: '', location: '', notes: '', status: form.date ? 'scheduled' : 'needs-scheduling' });
     setShowAdd(false);
+  };
+
+  const startEdit = (appt) => {
+    setEditingAppt(appt);
+    setEditForm({
+      type: appt.type || '',
+      category: appt.category || 'medical',
+      doctor: appt.doctor || '',
+      date: appt.date || '',
+      time: appt.time || '',
+      location: appt.location || '',
+      notes: appt.notes || '',
+      status: appt.status || 'scheduled',
+      prepNotes: appt.prepNotes || '',
+      followUp: appt.followUp || '',
+      referral: appt.referral || '',
+    });
+  };
+
+  const submitEdit = (e) => {
+    e.preventDefault();
+    if (!editingAppt) return;
+    const eventType = ALL_EVENT_TYPES.find(t => t.id === editForm.type);
+    updateAppointment(editingAppt.id, {
+      ...editForm,
+      category: eventType?.category || editForm.category,
+      status: editForm.date ? (editForm.status === 'needs-scheduling' ? 'scheduled' : editForm.status) : editForm.status,
+    });
+    setEditingAppt(null);
+    setEditForm(null);
   };
 
   return (
@@ -108,8 +140,12 @@ export default function Events({ data, updateAppointment, addAppointment, delete
                         className="bg-slate-600 text-white px-2 py-1 rounded-lg text-sm">Cancel</button>
                     </div>
                   ) : (
-                    <button onClick={() => { setSchedulingId(appt.id); setScheduleDate(toLocalDateStr()); }}
-                      className="bg-amber-600 text-white px-3 py-1 rounded-lg text-sm">Schedule</button>
+                    <div className="flex gap-1">
+                      <button onClick={() => startEdit(appt)}
+                        className="text-xs bg-blue-900/40 text-blue-400 px-2 py-1 rounded">Edit</button>
+                      <button onClick={() => { setSchedulingId(appt.id); setScheduleDate(toLocalDateStr()); }}
+                        className="bg-amber-600 text-white px-3 py-1 rounded-lg text-sm">Schedule</button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -151,10 +187,15 @@ export default function Events({ data, updateAppointment, addAppointment, delete
                       {days !== null && <span className="ml-2 text-blue-400 font-medium">({days} days)</span>}
                     </div>
                     {appt.location && <div className="text-xs text-slate-500 mt-1">📍 {appt.location}</div>}
+                    {appt.prepNotes && <div className="text-xs text-amber-400/80 mt-1">📝 Prep: {appt.prepNotes}</div>}
+                    {appt.followUp && <div className="text-xs text-blue-400/80 mt-1">↩️ Follow-up: {appt.followUp}</div>}
+                    {appt.referral && <div className="text-xs text-purple-400/80 mt-1">🔗 Referral: {appt.referral}</div>}
                   </div>
                   <div className="flex gap-1">
+                    <button onClick={() => startEdit(appt)}
+                      className="text-xs bg-blue-900/40 text-blue-400 px-2 py-1 rounded">Edit</button>
                     <button onClick={() => updateAppointment(appt.id, { status: 'completed' })}
-                      className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">✓ Done</button>
+                      className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">✓</button>
                     <button onClick={() => deleteAppointment(appt.id)}
                       className="text-xs bg-red-900/30 text-red-400 px-2 py-1 rounded">×</button>
                   </div>
@@ -172,14 +213,20 @@ export default function Events({ data, updateAppointment, addAppointment, delete
           {past.map(appt => {
             const type = ALL_EVENT_TYPES.find(t => t.id === appt.type) || ALL_EVENT_TYPES[ALL_EVENT_TYPES.length - 1];
             return (
-              <div key={appt.id} className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 opacity-60">
+              <div key={appt.id} className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 opacity-70">
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{type.emoji}</span>
                   <div className="flex-1">
                     <div className="font-medium text-slate-300">{appt.notes || type.label}</div>
+                    {appt.doctor && <div className="text-xs text-slate-400">{appt.doctor}</div>}
                     <div className="text-xs text-slate-500">{formatDate(appt.date)}</div>
+                    {appt.followUp && <div className="text-xs text-blue-400/70 mt-1">↩️ {appt.followUp}</div>}
                   </div>
-                  <span className="text-xs bg-slate-700 text-slate-400 px-2 py-1 rounded-full">Completed</span>
+                  <div className="flex gap-1 items-center">
+                    <button onClick={() => startEdit(appt)}
+                      className="text-xs bg-blue-900/40 text-blue-400 px-2 py-1 rounded">Edit</button>
+                    <span className="text-xs bg-slate-700 text-slate-400 px-2 py-1 rounded-full">Done</span>
+                  </div>
                 </div>
               </div>
             );
@@ -240,6 +287,94 @@ export default function Events({ data, updateAppointment, addAppointment, delete
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editingAppt && editForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingAppt(null); setEditForm(null); }}>
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">Edit Event</h3>
+            <form onSubmit={submitEdit} className="space-y-3">
+              {/* Category */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'medical', label: 'Medical', emoji: '🩺' },
+                  { id: 'fitness', label: 'Fitness', emoji: '💪' },
+                  { id: 'social', label: 'Social', emoji: '🎉' },
+                ].map(cat => (
+                  <button key={cat.id} type="button"
+                    onClick={() => setEditForm(f => ({ ...f, category: cat.id, type: '' }))}
+                    className={`p-2 rounded-lg text-center text-xs transition-all ${
+                      editForm.category === cat.id ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'
+                    }`}>
+                    <div className="text-lg">{cat.emoji}</div>
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Type */}
+              <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white">
+                <option value="">Select type...</option>
+                {getTypesForCategory(editForm.category).map(t => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+                ))}
+              </select>
+
+              {/* Doctor */}
+              <input type="text" placeholder="Doctor / Contact" value={editForm.doctor}
+                onChange={e => setEditForm(f => ({ ...f, doctor: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                  className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+                <input type="time" value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))}
+                  className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+              </div>
+
+              {/* Location */}
+              <input type="text" placeholder="Location" value={editForm.location}
+                onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+
+              {/* Notes */}
+              <textarea placeholder="Notes / Description" value={editForm.notes} rows={2}
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400 resize-none" />
+
+              {/* Extra detail fields for medical visits */}
+              <div className="border-t border-slate-700 pt-3 space-y-2">
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Details</div>
+                <textarea placeholder="Prep notes (fasting, bring records, questions to ask...)" value={editForm.prepNotes} rows={2}
+                  onChange={e => setEditForm(f => ({ ...f, prepNotes: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400 resize-none" />
+                <textarea placeholder="Follow-up / Results" value={editForm.followUp} rows={2}
+                  onChange={e => setEditForm(f => ({ ...f, followUp: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400 resize-none" />
+                <input type="text" placeholder="Referral (referred by / referred to)" value={editForm.referral}
+                  onChange={e => setEditForm(f => ({ ...f, referral: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              </div>
+
+              {/* Status */}
+              <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white">
+                <option value="scheduled">Scheduled</option>
+                <option value="needs-scheduling">Needs Scheduling</option>
+                <option value="completed">Completed</option>
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setEditingAppt(null); setEditForm(null); }}
+                  className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save Changes</button>
               </div>
             </form>
           </div>
