@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
+import { toLocalDateStr } from '../utils/dateUtils';
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => toLocalDateStr();
 const dayOfWeek = () => new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
 const DEFAULT_DAILY_ITEMS = [
@@ -89,7 +90,7 @@ export default function Dashboard({
     const d = new Date();
     d.setDate(d.getDate() - 1);
     while (true) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       const checks = data?.dailyChecklist?.[dateStr] || {};
       const completed = Object.values(checks).filter(Boolean).length;
       if (completed >= 3) { count++; d.setDate(d.getDate() - 1); } else break;
