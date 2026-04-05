@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
-import { toLocalDateStr } from '../utils/dateUtils';
+import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
 
 const today = () => toLocalDateStr();
 const dayOfWeek = () => new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -81,10 +81,16 @@ export default function Dashboard({
   // Fasting data
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
   const todayFasting = data?.fastingLog?.[todayStr] || {};
-  const fastActive = todayFasting.fastStart && !todayFasting.fastEnd;
 
   // Fiber data
   const todayFiber = data?.fiberLog?.[todayStr] || {};
+
+  // Exercise log
+  const [showExerciseLog, setShowExerciseLog] = useState(false);
+  const [exerciseForm, setExerciseForm] = useState({ type: 'walk', duration: '', notes: '' });
+
+  // Fasting meal-time inputs
+  const [fastingEditMode, setFastingEditMode] = useState(false);
 
   // Collapsible sections
   const [medsExpanded, setMedsExpanded] = useState(false);
@@ -302,12 +308,12 @@ export default function Dashboard({
       {/* Today's Workout */}
       {todayPlan && (
         <Section title="Today's Workout" emoji={todayPlan.emoji} defaultOpen={true}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-3">
             <div className="flex-1">
               <div className="font-medium text-white">{todayPlan.exercise}</div>
             </div>
             <button
-              onClick={() => toggleDayCompletion(todayDow, weekKey)}
+              onClick={() => { toggleDayCompletion(todayDow, weekKey); if (!dailyChecks['workout']) toggleDailyItem(todayStr, 'workout'); }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 completions[todayDow] ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-500'
               }`}
@@ -315,6 +321,63 @@ export default function Dashboard({
               {completions[todayDow] ? '✓ Done!' : 'Mark Done'}
             </button>
           </div>
+          {/* Quick exercise log */}
+          {!showExerciseLog ? (
+            <button onClick={() => setShowExerciseLog(true)}
+              className="text-xs text-blue-400 hover:underline">+ Log exercise details</button>
+          ) : (
+            <div className="space-y-2 bg-slate-700/50 rounded-lg p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <select value={exerciseForm.type} onChange={e => setExerciseForm(f => ({...f, type: e.target.value}))}
+                  className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white">
+                  <option value="walk">🚶 Walk</option>
+                  <option value="run">🏃 Run</option>
+                  <option value="weights">🏋️ Weights</option>
+                  <option value="bike">🚴 Bike</option>
+                  <option value="swim">🏊 Swim</option>
+                  <option value="yoga">🧘 Yoga/Mobility</option>
+                  <option value="other">💪 Other</option>
+                </select>
+                <input type="number" placeholder="Minutes" value={exerciseForm.duration}
+                  onChange={e => setExerciseForm(f => ({...f, duration: e.target.value}))}
+                  className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+              </div>
+              <input type="text" placeholder="Notes (optional)" value={exerciseForm.notes}
+                onChange={e => setExerciseForm(f => ({...f, notes: e.target.value}))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+              <div className="flex gap-2">
+                <button onClick={() => {
+                  if (!exerciseForm.duration) return;
+                  const log = { ...(data?.exerciseLog || {}) };
+                  const todayLog = log[todayStr] || [];
+                  log[todayStr] = [...todayLog, { id: Date.now(), type: exerciseForm.type, duration: parseInt(exerciseForm.duration), notes: exerciseForm.notes }];
+                  rest.save?.({ exerciseLog: log });
+                  setExerciseForm({ type: 'walk', duration: '', notes: '' });
+                  setShowExerciseLog(false);
+                  if (!dailyChecks['move']) toggleDailyItem(todayStr, 'move');
+                }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500">
+                  Save
+                </button>
+                <button onClick={() => setShowExerciseLog(false)}
+                  className="px-3 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-500">Cancel</button>
+              </div>
+              {/* Today's logged exercises */}
+              {(data?.exerciseLog?.[todayStr] || []).length > 0 && (
+                <div className="pt-2 border-t border-slate-600 space-y-1">
+                  {(data.exerciseLog[todayStr]).map(e => (
+                    <div key={e.id} className="flex items-center gap-2 text-xs text-slate-400">
+                      <span>{e.type === 'walk' ? '🚶' : e.type === 'run' ? '🏃' : e.type === 'weights' ? '🏋️' : e.type === 'bike' ? '🚴' : e.type === 'swim' ? '🏊' : e.type === 'yoga' ? '🧘' : '💪'}</span>
+                      <span>{e.duration} min</span>
+                      {e.notes && <span className="text-slate-500">— {e.notes}</span>}
+                    </div>
+                  ))}
+                  <div className="text-xs text-green-400 font-medium">
+                    Total: {(data.exerciseLog[todayStr]).reduce((s, e) => s + (e.duration || 0), 0)} min
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </Section>
       )}
 
@@ -558,71 +621,108 @@ export default function Dashboard({
       {/* Intermittent Fasting Tracker */}
       <Section title="Intermittent Fasting" emoji="⏱️" defaultOpen={true}>
         {(() => {
-          const now = new Date();
+          const yesterdayStr = offsetDateStr(todayStr, -1);
+          const lastMeal = todayFasting.lastMealYesterday || '';
+          const firstMeal = todayFasting.firstMealToday || '';
+
+          // Calculate fasting hours from last meal yesterday to first meal today
           let fastHours = 0;
           let fastMins = 0;
-          if (todayFasting.fastStart) {
-            const end = todayFasting.fastEnd ? new Date(todayFasting.fastEnd) : now;
-            const start = new Date(todayFasting.fastStart);
-            const diff = (end - start) / 1000 / 60;
-            fastHours = Math.floor(diff / 60);
-            fastMins = Math.floor(diff % 60);
+          let hasBothMeals = false;
+          if (lastMeal && firstMeal) {
+            hasBothMeals = true;
+            const [lh, lm] = lastMeal.split(':').map(Number);
+            const [fh, fm] = firstMeal.split(':').map(Number);
+            // Last meal was yesterday, first meal is today
+            const lastMealMins = lh * 60 + lm;
+            const firstMealMins = fh * 60 + fm;
+            const totalMins = (24 * 60 - lastMealMins) + firstMealMins;
+            fastHours = Math.floor(totalMins / 60);
+            fastMins = totalMins % 60;
           }
-          const pct = Math.min(1, (fastHours + fastMins / 60) / fastingSettings.targetFastHours);
-          const metGoal = (fastHours + fastMins / 60) >= fastingSettings.targetFastHours;
+          const totalFastDecimal = fastHours + fastMins / 60;
+          const targetHours = fastingSettings.targetFastHours;
+          const pct = hasBothMeals ? Math.min(1, totalFastDecimal / targetHours) : 0;
+          const metGoal = hasBothMeals && totalFastDecimal >= targetHours;
+
+          // Quick presets for common meal times
+          const lastMealPresets = ['18:00', '19:00', '20:00', '21:00'];
+          const firstMealPresets = ['10:00', '11:00', '12:00', '13:00'];
 
           return (
             <div className="space-y-3">
-              {/* Status bar */}
+              {/* Status */}
               <div className={`flex items-center gap-3 p-3 rounded-lg ${
-                fastActive ? 'bg-amber-900/30 border border-amber-700' :
                 metGoal ? 'bg-green-900/30 border border-green-700' :
+                hasBothMeals ? 'bg-amber-900/30 border border-amber-700' :
                 'bg-slate-700/50 border border-slate-600'
               }`}>
-                <div className="text-2xl">{fastActive ? '🔥' : metGoal ? '✅' : '🍽️'}</div>
+                <div className="text-2xl">{metGoal ? '✅' : hasBothMeals ? '⏱️' : '🍽️'}</div>
                 <div className="flex-1">
                   <div className="text-sm font-medium text-white">
-                    {fastActive ? 'Fasting' : metGoal ? 'Fast complete!' : todayFasting.fastEnd ? 'Feeding window' : 'Not started'}
+                    {metGoal ? `${fastHours}h ${fastMins}m fast — Goal met!` :
+                     hasBothMeals ? `${fastHours}h ${fastMins}m fast (goal: ${targetHours}h)` :
+                     'Log your meals to track fasting'}
                   </div>
-                  {todayFasting.fastStart && (
+                  {hasBothMeals && (
                     <div className="text-xs text-slate-400">
-                      {fastHours}h {fastMins}m {fastActive ? 'fasted' : 'total fast'} / {fastingSettings.targetFastHours}h goal
+                      Last meal yesterday {lastMeal} → First meal today {firstMeal}
                     </div>
                   )}
                 </div>
-                {!todayFasting.fastStart ? (
-                  <button onClick={() => saveFastingEntry(todayStr, { fastStart: new Date().toISOString() })}
-                    className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-500">
-                    Start Fast
-                  </button>
-                ) : fastActive ? (
-                  <button onClick={() => saveFastingEntry(todayStr, { fastEnd: new Date().toISOString() })}
-                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-500">
-                    End Fast
-                  </button>
-                ) : (
-                  <button onClick={() => saveFastingEntry(todayStr, { fastStart: null, fastEnd: null })}
-                    className="px-3 py-1.5 bg-slate-600 text-white rounded-lg text-xs font-medium hover:bg-slate-500">
-                    Reset
-                  </button>
-                )}
               </div>
 
               {/* Progress bar */}
-              {todayFasting.fastStart && (
-                <div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
-                    <div className={`rounded-full h-2 transition-all ${metGoal ? 'bg-green-500' : 'bg-amber-500'}`}
-                      style={{ width: `${pct * 100}%` }} />
-                  </div>
+              {hasBothMeals && (
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className={`rounded-full h-2 transition-all ${metGoal ? 'bg-green-500' : 'bg-amber-500'}`}
+                    style={{ width: `${pct * 100}%` }} />
                 </div>
               )}
 
-              {/* Feeding window info */}
-              <div className="flex gap-2 text-xs text-slate-500">
-                <span>Feeding: {fastingSettings.typicalFeedingStart} – {fastingSettings.typicalFastStart}</span>
-                <span>·</span>
-                <span>{fastingSettings.targetFastHours}:{String(fastingSettings.feedingWindowHours).padStart(2,'0')} fast:feed</span>
+              {/* Meal time inputs */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Last meal yesterday */}
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">🌙 Last meal yesterday</label>
+                  <input type="time" value={lastMeal}
+                    onChange={e => saveFastingEntry(todayStr, { ...todayFasting, lastMealYesterday: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+                  <div className="flex gap-1 mt-1">
+                    {lastMealPresets.map(t => (
+                      <button key={t} onClick={() => saveFastingEntry(todayStr, { ...todayFasting, lastMealYesterday: t })}
+                        className={`text-xs px-1.5 py-0.5 rounded ${lastMeal === t ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
+                        {t.replace(':00', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* First meal today */}
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">☀️ First meal today</label>
+                  <input type="time" value={firstMeal}
+                    onChange={e => saveFastingEntry(todayStr, { ...todayFasting, firstMealToday: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+                  <div className="flex gap-1 mt-1">
+                    {firstMealPresets.map(t => (
+                      <button key={t} onClick={() => saveFastingEntry(todayStr, { ...todayFasting, firstMealToday: t })}
+                        className={`text-xs px-1.5 py-0.5 rounded ${firstMeal === t ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
+                        {t.replace(':00', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Reset */}
+              {(lastMeal || firstMeal) && (
+                <button onClick={() => saveFastingEntry(todayStr, { lastMealYesterday: null, firstMealToday: null, fastStart: null, fastEnd: null })}
+                  className="text-xs text-slate-500 hover:text-slate-400">Reset</button>
+              )}
+
+              {/* Target info */}
+              <div className="text-xs text-slate-500">
+                Goal: {targetHours}h fast · Typical: eat by {fastingSettings.typicalFastStart}, resume at {fastingSettings.typicalFeedingStart}
               </div>
             </div>
           );

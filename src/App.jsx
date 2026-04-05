@@ -78,7 +78,7 @@ export default function App() {
       <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
       {renderSection()}
       <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-        Made by Mike Dulin, MD · Build 5
+        Made by Mike Dulin, MD · Build 6
       </footer>
     </div>
   );
