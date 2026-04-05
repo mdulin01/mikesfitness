@@ -348,6 +348,34 @@ export const imagingHistory = [
     },
   },
 
+  {
+    date: '2016-11-03',
+    type: 'imaging',
+    category: 'renal',
+    name: 'MRI Abdomen (HPRC Baseline)',
+    provider: 'Lawrence Yao, MD',
+    ordering: 'Sidana, Abhinav, MD',
+    source: 'NIH Clinical Center',
+    accession: 'MR5000432866',
+    result: 'Essentially normal',
+    summary: 'Tiny 0.4cm probable right renal cyst. Otherwise unremarkable abdomen. No mass lesions or adenopathy. Baseline screen.',
+    details: {
+      indication: 'MET + baseline screen',
+      technique: 'Pre contrast T1 in/out phase, DWI, T2, pre/post 3D GRE. 8.2ml Gadavist.',
+      rightKidney: 'Small right renal cyst (0.4cm). No hydronephrosis. Normal size and shape.',
+      leftKidney: 'Normal size and shape. No hydronephrosis.',
+      liver: 'No focal hepatic lesions. No organomegaly.',
+      gallbladder: 'Unremarkable, no stones or wall thickening. No bile duct dilatation.',
+      pancreas: 'Normal configuration, no duct dilatation.',
+      spleen: 'Normal, no organomegaly.',
+      adrenals: 'Unremarkable',
+      bones: 'No focal skeletal pathology',
+      other: 'No bowel dilatation, ascites, or adenopathy.',
+      impression: 'Tiny probable right renal cyst. Otherwise unremarkable survey of the abdomen; no evidence of mass lesions or adenopathy.',
+      comparedTo: null,
+    },
+  },
+
   // === GENETICS ===
   {
     date: '2016-09-19',
