@@ -64,6 +64,9 @@ const defaultData = {
 
   // Shopping list: [{ id, item, checked, category }]
   shoppingList: [],
+
+  // Workout details per day: { '2026-W14': { monday: [{ type, distance, duration, notes }] } }
+  workoutDetails: {},
 };
 
 export const useHealthData = (user) => {
@@ -248,6 +251,16 @@ export const useHealthData = (user) => {
     save({ swimmingLog: log });
   }, [data, save]);
 
+  // ========== WORKOUT DETAILS (per-day activity logs) ==========
+  // workoutDetails: { '2026-W14': { monday: [{ type, distance, duration, notes }], ... } }
+  const saveWorkoutDetail = useCallback((weekKey, dayKey, details) => {
+    const all = { ...(data?.workoutDetails || {}) };
+    if (!all[weekKey]) all[weekKey] = {};
+    all[weekKey][dayKey] = details;
+    setData(d => ({ ...d, workoutDetails: all }));
+    save({ workoutDetails: all });
+  }, [data, save]);
+
   // ========== EDIT DAILY CHECKLIST ITEMS ==========
   const updateDailyItems = useCallback((items) => {
     setData(d => ({ ...d, customDailyItems: items }));
@@ -295,6 +308,8 @@ export const useHealthData = (user) => {
     saveWeekNotes,
     addSwimEntry,
     updateDailyItems,
+    // Workout details
+    saveWorkoutDetail,
     // Shopping list
     addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems,
   };

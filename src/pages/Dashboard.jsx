@@ -17,21 +17,33 @@ const DEFAULT_DAILY_ITEMS = [
   { key: 'no-sweets', label: 'No Sweets', emoji: '🚫🍰' },
 ];
 
+// Collapsible section wrapper
+function Section({ title, emoji, defaultOpen = true, rightAction, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between p-4 text-left">
+        <h2 className="font-semibold text-white">{emoji && `${emoji} `}{title}</h2>
+        <span className="text-slate-500 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-4 pb-4 -mt-1">{children}</div>}
+    </div>
+  );
+}
+
 export default function Dashboard({
   data, toggleDayCompletion, getWeekKey, toggleDailyItem, setActiveSection,
   toggleMedCheck,
-  getMonthKey, toggleMonthlyGoalCheck, addMonthlyGoal, removeMonthlyGoal,
+  getMonthKey,
   updateDailyItems, ...rest
 }) {
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayStr = today();
-  const monthKey = getMonthKey();
   const dailyChecks = data?.dailyChecklist?.[todayStr] || {};
   const medChecks = data?.medicationChecks?.[todayStr] || {};
   const todayMeals = data?.mealLog?.[todayStr] || [];
-  const monthGoals = data?.monthlyGoals?.[monthKey] || { goals: [], dailyChecks: {} };
-  const monthDailyChecks = monthGoals.dailyChecks?.[todayStr] || {};
   const daysCompleted = Object.values(completions).filter(Boolean).length;
   const todayDow = dayOfWeek();
   const todayPlan = exercisePlan.weeklySchedule.find(d => d.day.toLowerCase() === todayDow);
@@ -41,10 +53,6 @@ export default function Dashboard({
   // Collapsible sections
   const [medsExpanded, setMedsExpanded] = useState(false);
   const [supplementsExpanded, setSupplementsExpanded] = useState(false);
-
-  // Monthly goal add
-  const [showGoalModal, setShowGoalModal] = useState(false);
-  const [goalForm, setGoalForm] = useState({ label: '', emoji: '🎯' });
 
   // Edit checklist
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -69,21 +77,14 @@ export default function Dashboard({
     return count;
   }, [data, dailyChecks]);
 
-  const monthProgress = useMemo(() => {
-    if (!monthGoals.goals.length) return { daysClean: 0, totalDays: 0 };
-    const totalDays = new Date().getDate();
-    let perfectDays = 0;
-    for (let i = 1; i <= totalDays; i++) {
-      const dateStr = `${monthKey}-${String(i).padStart(2, '0')}`;
-      const checks = monthGoals.dailyChecks?.[dateStr] || {};
-      if (monthGoals.goals.every(g => checks[g.id])) perfectDays++;
-    }
-    return { daysClean: perfectDays, totalDays };
-  }, [monthGoals, monthKey]);
+  // Fitness events from appointments (shared with Events page and Training page)
+  const fitnessEvents = (data?.appointments || [])
+    .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const upcomingAppts = (data?.appointments || [])
     .filter(a => a.date && a.date >= todayStr && a.status === 'scheduled')
-    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
   const needsScheduling = (data?.appointments || []).filter(a => a.status === 'needs-scheduling');
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -95,25 +96,17 @@ export default function Dashboard({
   const allSupsTaken = healthPlan.supplements.every(s => medChecks[s.name]);
   const supsTakenCount = healthPlan.supplements.filter(s => medChecks[s.name]).length;
   const fiberTaken = medChecks['Fiber'];
-  const totalMedItems = healthPlan.medications.length + healthPlan.supplements.length + 1; // +1 for fiber
+  const totalMedItems = healthPlan.medications.length + healthPlan.supplements.length + 1;
   const totalMedChecked = medsTakenCount + supsTakenCount + (fiberTaken ? 1 : 0);
   const allDone = totalMedChecked === totalMedItems;
 
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
   const dailyTotal = dailyItems.length;
 
-  // Eat Healthy ring — based on meals logged (target: 2+ healthy meals)
+  // Eat Healthy ring
   const healthyMealCount = todayMeals.length;
   const healthyMealTarget = 2;
   const eatHealthyPct = Math.min(1, healthyMealCount / healthyMealTarget);
-
-  const submitGoal = (e) => {
-    e.preventDefault();
-    if (!goalForm.label) return;
-    addMonthlyGoal(monthKey, { label: goalForm.label, emoji: goalForm.emoji });
-    setGoalForm({ label: '', emoji: '🎯' });
-    setShowGoalModal(false);
-  };
 
   const startEditChecklist = () => { setEditItems([...dailyItems]); setEditingChecklist(true); };
   const saveChecklist = () => { updateDailyItems(editItems.filter(i => i.label.trim())); setEditingChecklist(false); };
@@ -146,7 +139,6 @@ export default function Dashboard({
 
       {/* Progress Ring Row — 4 rings */}
       <div className="grid grid-cols-4 gap-2">
-        {/* Workout ring */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
           <div className="relative w-14 h-14 mx-auto mb-1">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
@@ -158,7 +150,6 @@ export default function Dashboard({
           </div>
           <div className="text-xs text-slate-400">Workout</div>
         </div>
-        {/* Eat Healthy ring */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
           <div className="relative w-14 h-14 mx-auto mb-1">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
@@ -170,7 +161,6 @@ export default function Dashboard({
           </div>
           <div className="text-xs text-slate-400">Eat Healthy</div>
         </div>
-        {/* Take Meds ring */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
           <div className="relative w-14 h-14 mx-auto mb-1">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
@@ -182,7 +172,6 @@ export default function Dashboard({
           </div>
           <div className="text-xs text-slate-400">Take Meds</div>
         </div>
-        {/* Healthy Habits ring */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
           <div className="relative w-14 h-14 mx-auto mb-1">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
@@ -198,11 +187,9 @@ export default function Dashboard({
 
       {/* Today's Workout */}
       {todayPlan && (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <Section title="Today's Workout" emoji={todayPlan.emoji} defaultOpen={true}>
           <div className="flex items-center gap-3">
-            <div className="text-3xl">{todayPlan.emoji}</div>
             <div className="flex-1">
-              <div className="text-xs text-slate-500 uppercase tracking-wide">Today's Workout</div>
               <div className="font-medium text-white">{todayPlan.exercise}</div>
             </div>
             <button
@@ -214,40 +201,40 @@ export default function Dashboard({
               {completions[todayDow] ? '✓ Done!' : 'Mark Done'}
             </button>
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Today's Healthy Habits */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">Today's Healthy Habits</h2>
+      <div className="bg-slate-800 rounded-xl border border-slate-700">
+        <div className="flex items-center justify-between p-4">
+          <h2 className="font-semibold text-white">✅ Today's Healthy Habits</h2>
           <button onClick={startEditChecklist} className="text-xs text-blue-400 hover:underline">Edit ✏️</button>
         </div>
-        <div className="space-y-2">
-          {dailyItems.map(item => (
-            <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                dailyChecks[item.key] ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-              }`}>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                dailyChecks[item.key] ? 'border-green-500 bg-green-500' : 'border-slate-500'
-              }`}>{dailyChecks[item.key] && <span className="text-white text-xs">✓</span>}</div>
-              <span className={`text-sm ${dailyChecks[item.key] ? 'text-green-400 line-through' : 'text-slate-300'}`}>{item.emoji} {item.label}</span>
-            </button>
-          ))}
-        </div>
-        {dailyProgress === dailyTotal && dailyTotal > 0 && (
-          <div className="mt-3 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
-            <span className="text-green-400 text-sm font-medium">🎉 All habits completed! Great job today!</span>
+        <div className="px-4 pb-4 -mt-1">
+          <div className="space-y-2">
+            {dailyItems.map(item => (
+              <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                  dailyChecks[item.key] ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
+                }`}>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                  dailyChecks[item.key] ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                }`}>{dailyChecks[item.key] && <span className="text-white text-xs">✓</span>}</div>
+                <span className={`text-sm ${dailyChecks[item.key] ? 'text-green-400 line-through' : 'text-slate-300'}`}>{item.emoji} {item.label}</span>
+              </button>
+            ))}
           </div>
-        )}
+          {dailyProgress === dailyTotal && dailyTotal > 0 && (
+            <div className="mt-3 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
+              <span className="text-green-400 text-sm font-medium">🎉 All habits completed! Great job today!</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Meds & Supplements — collapsible groups */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <h2 className="font-semibold text-white mb-3">💊 Meds & Supplements</h2>
+      {/* Meds & Supplements */}
+      <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>
         <div className="space-y-2">
-
           {/* Medications group */}
           <div>
             <button onClick={() => setMedsExpanded(e => !e)}
@@ -332,52 +319,11 @@ export default function Dashboard({
             <span className="text-green-400 text-sm font-medium">✅ All meds & supplements taken!</span>
           </div>
         )}
-      </div>
+      </Section>
 
-      {/* Monthly Goals */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">🎯 Monthly Goals — {new Date().toLocaleDateString('en-US', { month: 'long' })}</h2>
-          <button onClick={() => setShowGoalModal(true)} className="text-xs text-blue-400 hover:underline">+ Add</button>
-        </div>
-        {monthGoals.goals.length === 0 ? (
-          <p className="text-sm text-slate-500">No monthly goals set. Add one to start tracking!</p>
-        ) : (
-          <>
-            <div className="space-y-2 mb-3">
-              {monthGoals.goals.map(goal => (
-                <div key={goal.id} className="flex items-center gap-3">
-                  <button onClick={() => toggleMonthlyGoalCheck(monthKey, todayStr, goal.id)}
-                    className={`flex-1 flex items-center gap-3 p-3 rounded-lg transition-all ${
-                      monthDailyChecks[goal.id] ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-                    }`}>
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                      monthDailyChecks[goal.id] ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                    }`}>{monthDailyChecks[goal.id] && <span className="text-white text-xs">✓</span>}</div>
-                    <span className={`text-sm ${monthDailyChecks[goal.id] ? 'text-green-400' : 'text-slate-300'}`}>{goal.emoji} {goal.label}</span>
-                  </button>
-                  <button onClick={() => removeMonthlyGoal(monthKey, goal.id)} className="text-slate-600 hover:text-red-400 text-xs p-1">×</button>
-                </div>
-              ))}
-            </div>
-            <div className="bg-slate-700/50 rounded-lg p-3">
-              <div className="flex justify-between text-xs text-slate-400 mb-1">
-                <span>Month progress</span>
-                <span>{monthProgress.daysClean}/{monthProgress.totalDays} perfect days</span>
-              </div>
-              <div className="w-full bg-slate-600 rounded-full h-2">
-                <div className="bg-green-500 rounded-full h-2 transition-all"
-                  style={{ width: `${monthProgress.totalDays ? (monthProgress.daysClean / monthProgress.totalDays) * 100 : 0}%` }} />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Nutrition Summary — link to full Nutrition page */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">🍽️ Today's Nutrition</h2>
+      {/* Nutrition Summary */}
+      <Section title="Today's Nutrition" emoji="🍽️" defaultOpen={true}>
+        <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('nutrition')} className="text-sm text-blue-400 hover:underline">Log meals →</button>
         </div>
         {todayMeals.length === 0 ? (
@@ -399,12 +345,11 @@ export default function Dashboard({
             {todayMeals.length > 4 && <p className="text-xs text-slate-500 text-center">+{todayMeals.length - 4} more</p>}
           </div>
         )}
-      </div>
+      </Section>
 
       {/* This Week's Schedule */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">This Week</h2>
+      <Section title="This Week" emoji="📅" defaultOpen={true}>
+        <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('training')} className="text-sm text-blue-400 hover:underline">View all →</button>
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -426,39 +371,43 @@ export default function Dashboard({
             );
           })}
         </div>
-      </div>
+      </Section>
 
-      {/* Race Calendar */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <h2 className="font-semibold text-white mb-3">Race Calendar</h2>
-        <div className="space-y-2">
-          {(data?.trainingEvents || []).map(event => {
-            const days = daysUntil(event.date);
-            const totalDays = Math.ceil((new Date(event.date) - new Date('2026-01-01')) / 86400000);
-            const elapsed = totalDays - days;
-            const pct = Math.max(0, Math.min(100, (elapsed / totalDays) * 100));
-            return (
-              <div key={event.id} className="p-3 rounded-lg" style={{ background: event.color + '15', borderLeft: `3px solid ${event.color}` }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{event.emoji}</span>
-                  <div className="flex-1">
-                    <div className="font-medium text-white">{event.name}</div>
-                    <div className="text-xs text-slate-400">{event.location} · {formatDate(event.date)} · {days} days away</div>
+      {/* Race Calendar — uses fitness events from appointments (shared data) */}
+      <Section title="Race Calendar" emoji="🏁" defaultOpen={true}>
+        {fitnessEvents.length === 0 ? (
+          <p className="text-sm text-slate-500">No upcoming races. Add one from Events or Training.</p>
+        ) : (
+          <div className="space-y-2">
+            {fitnessEvents.map(event => {
+              const type = ALL_EVENT_TYPES.find(t => t.id === event.type);
+              const days = daysUntil(event.date);
+              const totalDays = Math.ceil((new Date(event.date) - new Date('2026-01-01')) / 86400000);
+              const elapsed = totalDays - days;
+              const pct = Math.max(0, Math.min(100, (elapsed / totalDays) * 100));
+              const color = type?.color || '#3b82f6';
+              return (
+                <div key={event.id} className="p-3 rounded-lg" style={{ background: color + '15', borderLeft: `3px solid ${color}` }}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">{type?.emoji || '🏅'}</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">{event.notes || type?.label || 'Event'}</div>
+                      <div className="text-xs text-slate-400">{event.location} · {formatDate(event.date)} · {days} days away</div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-1.5">
+                    <div className="rounded-full h-1.5 transition-all" style={{ width: `${pct}%`, background: color }} />
                   </div>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-1.5">
-                  <div className="rounded-full h-1.5 transition-all" style={{ width: `${pct}%`, background: event.color }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
 
       {/* Upcoming Events */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">Upcoming Events</h2>
+      <Section title="Upcoming Events" emoji="📋" defaultOpen={true}>
+        <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('events')} className="text-sm text-blue-400 hover:underline">View all →</button>
         </div>
         {upcomingAppts.length === 0 && needsScheduling.length === 0 ? (
@@ -489,33 +438,9 @@ export default function Dashboard({
             )}
           </div>
         )}
-      </div>
+      </Section>
 
       {/* ========== MODALS ========== */}
-
-      {/* Monthly Goal Modal */}
-      {showGoalModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGoalModal(false)}>
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white mb-4">Add Monthly Goal</h3>
-            <form onSubmit={submitGoal} className="space-y-3">
-              <div className="flex gap-2">
-                {['🎯', '🚫', '✅', '💪', '🧠', '❤️', '🏃', '🥗'].map(e => (
-                  <button key={e} type="button" onClick={() => setGoalForm(f => ({ ...f, emoji: e }))}
-                    className={`p-2 rounded text-lg ${goalForm.emoji === e ? 'bg-blue-600' : 'bg-slate-700'}`}>{e}</button>
-                ))}
-              </div>
-              <input type="text" placeholder="Goal description (e.g., No alcohol)" value={goalForm.label}
-                onChange={e => setGoalForm(f => ({ ...f, label: e.target.value }))}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" required />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowGoalModal(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Add Goal</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit Checklist Modal */}
       {editingChecklist && (

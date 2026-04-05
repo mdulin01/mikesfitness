@@ -1,11 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { exercisePlan } from '../data/exercisePlan';
+import { ALL_EVENT_TYPES, FITNESS_EVENT_TYPES } from '../constants';
 
-export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry }) {
-  const [view, setView] = useState('week'); // 'week' | 'workouts' | 'cardio' | 'swimming'
+const ACTIVITY_TYPES = [
+  { id: 'weights', label: 'Weights', emoji: '🏋️' },
+  { id: 'run', label: 'Run', emoji: '🏃' },
+  { id: 'walk', label: 'Walk', emoji: '🚶' },
+  { id: 'bike', label: 'Bike', emoji: '🚴' },
+  { id: 'swim', label: 'Swim', emoji: '🏊' },
+  { id: 'yoga', label: 'Yoga / Mobility', emoji: '🧘' },
+  { id: 'hiit', label: 'HIIT / Intervals', emoji: '⚡' },
+  { id: 'other', label: 'Other', emoji: '💪' },
+];
+
+export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry, saveWorkoutDetail, addAppointment, ...rest }) {
+  const [view, setView] = useState('week');
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayDow = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const todayStr = new Date().toISOString().split('T')[0];
 
   // Navigate weeks
   const [weekOffset, setWeekOffset] = useState(0);
@@ -20,6 +33,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   const currentWeekKey = getOffsetWeekKey(weekOffset);
   const currentCompletions = data?.weeklyCompletions?.[currentWeekKey] || {};
   const currentWeekNotes = data?.weekNotes?.[currentWeekKey] || {};
+  const currentWorkoutDetails = data?.workoutDetails?.[currentWeekKey] || {};
 
   // Week notes with debounced save
   const [localNotes, setLocalNotes] = useState(currentWeekNotes.notes || '');
@@ -38,6 +52,28 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
     notesTimerRef.current = setTimeout(() => {
       saveWeekNotes(currentWeekKey, { [field]: value });
     }, 800);
+  };
+
+  // Expanded day for details
+  const [expandedDay, setExpandedDay] = useState(null);
+  const [activityForm, setActivityForm] = useState({ type: 'weights', distance: '', duration: '', notes: '' });
+
+  const addActivity = (dayKey) => {
+    if (!activityForm.type) return;
+    const existing = currentWorkoutDetails[dayKey] || [];
+    const updated = [...existing, {
+      ...activityForm,
+      id: Date.now(),
+      distance: activityForm.distance || null,
+      duration: activityForm.duration || null,
+    }];
+    saveWorkoutDetail(currentWeekKey, dayKey, updated);
+    setActivityForm({ type: 'weights', distance: '', duration: '', notes: '' });
+  };
+
+  const removeActivity = (dayKey, actId) => {
+    const existing = currentWorkoutDetails[dayKey] || [];
+    saveWorkoutDetail(currentWeekKey, dayKey, existing.filter(a => a.id !== actId));
   };
 
   // Swimming log modal
@@ -60,9 +96,35 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
     setShowSwimModal(false);
   };
 
+  // Fitness event modal
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventForm, setEventForm] = useState({ type: 'half-marathon', date: '', location: '', notes: '' });
+
+  const submitFitnessEvent = (e) => {
+    e.preventDefault();
+    if (!eventForm.date || !eventForm.type) return;
+    addAppointment({
+      type: eventForm.type,
+      category: 'fitness',
+      doctor: '',
+      date: eventForm.date,
+      time: '',
+      location: eventForm.location,
+      notes: eventForm.notes,
+      status: 'scheduled',
+    });
+    setEventForm({ type: 'half-marathon', date: '', location: '', notes: '' });
+    setShowEventModal(false);
+  };
+
   const daysCompletedThisWeek = Object.values(currentCompletions).filter(Boolean).length;
   const recentSwims = (data?.swimmingLog || []).slice(0, 10);
   const totalLapsAllTime = (data?.swimmingLog || []).reduce((sum, s) => sum + (s.laps || 0), 0);
+
+  // Fitness events from shared appointments data
+  const fitnessEvents = (data?.appointments || [])
+    .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 pb-24 md:pb-6">
@@ -99,38 +161,107 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             <button onClick={() => setWeekOffset(o => o + 1)} className="p-2 text-slate-400 hover:text-slate-200">Next →</button>
           </div>
 
-          {/* Weekly schedule with checkoffs */}
+          {/* Weekly schedule with checkoffs and expandable details */}
           <div className="space-y-2">
             {exercisePlan.weeklySchedule.map(day => {
               const key = day.day.toLowerCase();
               const done = currentCompletions[key];
               const isToday = key === todayDow && weekOffset === 0;
+              const isExpanded = expandedDay === key;
+              const dayActivities = currentWorkoutDetails[key] || [];
+
               return (
-                <button
-                  key={key}
-                  onClick={() => toggleDayCompletion(key, currentWeekKey)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
-                    done ? 'bg-green-900/30 border border-green-700' :
-                    isToday ? 'bg-blue-900/30 border border-blue-700' :
-                    'bg-slate-800 border border-slate-700 hover:bg-slate-700'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    done ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                  }`}>
-                    {done ? <span className="text-white text-sm">✓</span> : <span className="text-xl">{day.emoji}</span>}
+                <div key={key} className={`rounded-xl overflow-hidden transition-all ${
+                  done ? 'bg-green-900/30 border border-green-700' :
+                  isToday ? 'bg-blue-900/30 border border-blue-700' :
+                  'bg-slate-800 border border-slate-700'
+                }`}>
+                  {/* Day header row */}
+                  <div className="flex items-center gap-4 p-4">
+                    <button onClick={() => toggleDayCompletion(key, currentWeekKey)}
+                      className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        done ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                      }`}>
+                      {done ? <span className="text-white text-sm">✓</span> : <span className="text-xl">{day.emoji}</span>}
+                    </button>
+                    <button onClick={() => setExpandedDay(isExpanded ? null : key)} className="flex-1 text-left">
+                      <div className="font-medium text-white">{day.day}</div>
+                      <div className="text-sm text-slate-400">{day.exercise}</div>
+                      {dayActivities.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {dayActivities.map(a => {
+                            const at = ACTIVITY_TYPES.find(t => t.id === a.type);
+                            return <span key={a.id} className="text-xs bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">{at?.emoji} {a.duration ? `${a.duration}min` : ''}{a.distance ? ` ${a.distance}mi` : ''}</span>;
+                          })}
+                        </div>
+                      )}
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {isToday && <span className="text-xs font-medium text-blue-400 bg-blue-900/50 px-2 py-1 rounded-full">Today</span>}
+                      <button onClick={() => setExpandedDay(isExpanded ? null : key)}
+                        className="text-slate-500 text-xs p-1">{isExpanded ? '▲' : '▼'}</button>
+                    </div>
                   </div>
-                  <div className="flex-1 text-left">
-                    <div className="font-medium text-white">{day.day}</div>
-                    <div className="text-sm text-slate-400">{day.exercise}</div>
-                  </div>
-                  {isToday && <span className="text-xs font-medium text-blue-400 bg-blue-900/50 px-2 py-1 rounded-full">Today</span>}
-                </button>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 border-t border-slate-700/50 pt-3 space-y-3">
+                      {/* Existing activities */}
+                      {dayActivities.length > 0 && (
+                        <div className="space-y-1">
+                          {dayActivities.map(a => {
+                            const at = ACTIVITY_TYPES.find(t => t.id === a.type);
+                            return (
+                              <div key={a.id} className="flex items-center gap-2 p-2 bg-slate-700/50 rounded-lg text-sm">
+                                <span>{at?.emoji}</span>
+                                <span className="font-medium text-white">{at?.label}</span>
+                                {a.distance && <span className="text-slate-400">{a.distance} mi</span>}
+                                {a.duration && <span className="text-slate-400">{a.duration} min</span>}
+                                {a.notes && <span className="text-slate-500 truncate flex-1">{a.notes}</span>}
+                                <button onClick={() => removeActivity(key, a.id)} className="text-slate-600 hover:text-red-400 text-xs ml-auto">×</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Add activity form */}
+                      <div className="space-y-2">
+                        <div className="text-xs text-slate-400 font-medium">Add Activity</div>
+                        <div className="flex flex-wrap gap-1">
+                          {ACTIVITY_TYPES.map(at => (
+                            <button key={at.id} onClick={() => setActivityForm(f => ({ ...f, type: at.id }))}
+                              className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                                activityForm.type === at.id ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'
+                              }`}>
+                              {at.emoji} {at.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input type="text" placeholder="Distance (mi)" value={activityForm.distance}
+                            onChange={e => setActivityForm(f => ({ ...f, distance: e.target.value }))}
+                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                          <input type="text" placeholder="Duration (min)" value={activityForm.duration}
+                            onChange={e => setActivityForm(f => ({ ...f, duration: e.target.value }))}
+                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                          <input type="text" placeholder="Notes" value={activityForm.notes}
+                            onChange={e => setActivityForm(f => ({ ...f, notes: e.target.value }))}
+                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                        </div>
+                        <button onClick={() => addActivity(key)}
+                          className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-500">
+                          + Add Activity
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
 
-          {/* Weekly summary with celebration */}
+          {/* Weekly summary */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
             <div className="text-lg font-bold text-white">
               {daysCompletedThisWeek === 7 ? '🎉 ' : ''}{daysCompletedThisWeek} / 7 days completed
@@ -147,7 +278,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             )}
           </div>
 
-          {/* Week Notes & Highlights (mikeandadam style) */}
+          {/* Week Notes */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-3">📝 Week Notes</h3>
             <div className="space-y-3">
@@ -200,22 +331,31 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             </div>
           </div>
 
-          {/* Race training */}
+          {/* Race Training — shared fitness events */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <h3 className="font-semibold text-white mb-3">Race Training</h3>
-            {(data?.trainingEvents || []).map(event => {
-              const daysUntil = Math.ceil((new Date(event.date) - new Date()) / 86400000);
-              const weeksUntil = Math.ceil(daysUntil / 7);
-              return (
-                <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg mb-2" style={{ background: event.color + '20' }}>
-                  <span className="text-2xl">{event.emoji}</span>
-                  <div className="flex-1">
-                    <div className="font-medium text-white">{event.name}</div>
-                    <div className="text-xs text-slate-400">{event.location} · {daysUntil} days ({weeksUntil} weeks) away</div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-white">Race Training</h3>
+              <button onClick={() => setShowEventModal(true)} className="text-xs text-blue-400 hover:underline">+ Add Race</button>
+            </div>
+            {fitnessEvents.length === 0 ? (
+              <p className="text-sm text-slate-500">No upcoming races.</p>
+            ) : (
+              fitnessEvents.map(event => {
+                const type = ALL_EVENT_TYPES.find(t => t.id === event.type);
+                const daysLeft = Math.ceil((new Date(event.date) - new Date()) / 86400000);
+                const weeksLeft = Math.ceil(daysLeft / 7);
+                const color = type?.color || '#3b82f6';
+                return (
+                  <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg mb-2" style={{ background: color + '20' }}>
+                    <span className="text-2xl">{type?.emoji || '🏅'}</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">{event.notes || type?.label || 'Event'}</div>
+                      <div className="text-xs text-slate-400">{event.location} · {daysLeft} days ({weeksLeft} weeks) away</div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </>
       )}
@@ -236,7 +376,6 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               </div>
             </div>
           ))}
-
           <div className="bg-amber-900/30 border border-amber-700 rounded-xl p-4">
             <div className="font-medium text-amber-400 text-sm">💡 Key Rule</div>
             <p className="text-sm text-amber-300 mt-1">Focus on big muscle groups. This is anti-aging medicine. You want moderately heavy — if it feels easy, it's not doing much.</p>
@@ -263,7 +402,6 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               <div className="mt-2 text-slate-400">Duration: {exercisePlan.cardioZone2.duration}</div>
             </div>
           </div>
-
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-1">VO2 Max Intervals (1x/week)</h3>
             <p className="text-sm text-slate-400 mb-3">This keeps you from becoming the person who gets winded.</p>
@@ -284,7 +422,6 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
 
       {view === 'swimming' && (
         <div className="space-y-4">
-          {/* Swimming overview */}
           <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-700/50 rounded-xl p-5">
             <h3 className="font-semibold text-white mb-2">🏊 Swimming</h3>
             <p className="text-sm text-slate-300 mb-3">{exercisePlan.swimming.description}</p>
@@ -300,13 +437,11 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             </div>
           </div>
 
-          {/* Log swim */}
           <button onClick={() => setShowSwimModal(true)}
             className="w-full bg-cyan-600 text-white py-3 rounded-xl font-medium text-sm hover:bg-cyan-500 transition-colors">
             + Log Swim Session
           </button>
 
-          {/* Swim workouts */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-3">Swim Workouts</h3>
             <div className="space-y-2">
@@ -326,7 +461,6 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             </div>
           </div>
 
-          {/* Benefits */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-2">Why Swimming?</h3>
             <div className="flex flex-wrap gap-2">
@@ -336,7 +470,6 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             </div>
           </div>
 
-          {/* Recent swims */}
           {recentSwims.length > 0 && (
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
               <h3 className="font-semibold text-white mb-3">Recent Swims</h3>
@@ -382,6 +515,35 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowSwimModal(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Fitness Event Modal */}
+      {showEventModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowEventModal(false)}>
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">🏅 Add Fitness Event</h3>
+            <form onSubmit={submitFitnessEvent} className="space-y-3">
+              <select value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" required>
+                {FITNESS_EVENT_TYPES.map(t => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+                ))}
+              </select>
+              <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" required />
+              <input type="text" placeholder="Location" value={eventForm.location}
+                onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              <input type="text" placeholder="Event name / notes" value={eventForm.notes}
+                onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowEventModal(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">Save</button>
               </div>
             </form>
           </div>
