@@ -74,9 +74,21 @@ function EventsTab({ data, updateAppointment, addAppointment, deleteAppointment 
     e.preventDefault();
     if (!form.type) return;
     const eventType = ALL_EVENT_TYPES.find(t => t.id === form.type);
-    addAppointment({ ...form, category: eventType?.category || form.category });
-    setForm({ type: '', category: 'medical', doctor: '', date: '', time: '', location: '', notes: '', status: form.date ? 'scheduled' : 'needs-scheduling' });
+    const status = form.date ? 'scheduled' : 'needs-scheduling';
+    addAppointment({ ...form, status, category: eventType?.category || form.category });
+    setForm({ type: '', category: 'medical', doctor: '', date: '', time: '', location: '', notes: '', status: 'scheduled' });
     setShowAdd(false);
+  };
+
+  const [showTodo, setShowTodo] = useState(false);
+  const [todoForm, setTodoForm] = useState({ type: '', category: 'medical', notes: '' });
+  const submitTodo = (e) => {
+    e.preventDefault();
+    if (!todoForm.notes) return;
+    const eventType = ALL_EVENT_TYPES.find(t => t.id === todoForm.type);
+    addAppointment({ ...todoForm, status: 'needs-scheduling', date: '', time: '', location: '', doctor: '', category: eventType?.category || todoForm.category });
+    setTodoForm({ type: '', category: 'medical', notes: '' });
+    setShowTodo(false);
   };
 
   const startEdit = (appt) => {
@@ -106,7 +118,10 @@ function EventsTab({ data, updateAppointment, addAppointment, deleteAppointment 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm text-slate-400">{upcoming.length} upcoming · {needsScheduling.length} to schedule</div>
-        <button onClick={() => setShowAdd(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">+ New</button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowTodo(true)} className="bg-amber-600 text-white px-3 py-2 rounded-lg text-sm font-medium">+ To-Do</button>
+          <button onClick={() => setShowAdd(true)} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium">+ Event</button>
+        </div>
       </div>
 
       {/* Category filter */}
@@ -324,6 +339,38 @@ function EventsTab({ data, updateAppointment, addAppointment, deleteAppointment 
                 <button type="button" onClick={() => { setEditingAppt(null); setEditForm(null); }}
                   className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* To-Do modal (quick add needs-scheduling) */}
+      {showTodo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowTodo(false)}>
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">Add To-Do</h3>
+            <p className="text-xs text-slate-400 mb-3">Something that needs to be scheduled</p>
+            <form onSubmit={submitTodo} className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                {[{ id: 'medical', label: 'Medical', emoji: '🩺' }, { id: 'fitness', label: 'Fitness', emoji: '💪' }, { id: 'social', label: 'Social', emoji: '🎉' }].map(cat => (
+                  <button key={cat.id} type="button" onClick={() => setTodoForm(f => ({ ...f, category: cat.id, type: '' }))}
+                    className={`p-2 rounded-lg text-center text-xs transition-all ${todoForm.category === cat.id ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                    <div className="text-lg">{cat.emoji}</div>{cat.label}
+                  </button>
+                ))}
+              </div>
+              <select value={todoForm.type} onChange={e => setTodoForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white">
+                <option value="">Type (optional)</option>
+                {getTypesForCategory(todoForm.category).map(t => <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
+              </select>
+              <input type="text" placeholder="What needs to be scheduled?" value={todoForm.notes}
+                onChange={e => setTodoForm(f => ({ ...f, notes: e.target.value }))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" required />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowTodo(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium">Add To-Do</button>
               </div>
             </form>
           </div>
