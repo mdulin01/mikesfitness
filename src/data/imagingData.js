@@ -204,6 +204,40 @@ export const imagingHistory = [
     },
   },
 
+  // === ABDOMINAL IMAGING ===
+  {
+    date: '2019-09-25',
+    type: 'imaging',
+    category: 'gi',
+    name: 'CT Abdomen and Pelvis with IV Contrast',
+    provider: 'James Ferris, MD',
+    ordering: 'Nilesh Lodhia, MD',
+    source: 'Atrium Health',
+    result: 'Abnormal',
+    summary: 'Mild inflammatory stricture of terminal ileum suggestive of Crohn\'s disease. No abscess or obstruction.',
+    details: {
+      indication: 'Terminal ileal ulcer seen on recent colonoscopy',
+      contrast: '120 cc IV Isovue 370 + oral Breeza',
+      terminalIleum: 'Circumferential wall thickening and hyperemia with mild luminal narrowing. More chronic than acute appearance.',
+      fibrofattyProliferation: 'Mild right lower quadrant',
+      mesentericNodes: 'Subcentimeter right lower quadrant and scattered',
+      smallBowel: 'No upstream dilatation, no obstruction',
+      appendix: 'Normal',
+      liver: 'Unremarkable',
+      spleen: 'Unremarkable',
+      pancreas: 'Unremarkable',
+      kidneys: 'Unremarkable',
+      prostate: 'Moderately enlarged',
+      bladder: 'Unremarkable',
+      other: 'Small right inguinal hernia',
+      impression: [
+        'Mild inflammatory stricture of terminal ileum, suggestive of Crohn\'s disease sequela',
+        'No abscess or obstruction',
+        'Moderate prostatic enlargement',
+      ],
+    },
+  },
+
   // === GENETICS ===
   {
     date: '2016-09-19',
@@ -225,6 +259,7 @@ export const imagingHistory = [
 // Colonoscopy timeline for Crohn's monitoring
 export const colonoscopyTimeline = [
   { date: '2019-09-11', finding: 'TI ulcers + sessile serrated adenomas (ascending, transverse)', provider: 'Lodhia' },
+  { date: '2019-09-25', finding: 'CT A/P: mild inflammatory stricture of TI, chronic appearance, suggestive of Crohn\'s', provider: 'Ferris' },
   { date: '2020-01-08', finding: 'TI unremarkable + hyperplastic polyps (transverse, rectal)', provider: 'Lodhia' },
   { date: '2023-06-27', finding: 'Colonoscopy performed (details in scanned report)', provider: 'Lodhia' },
   { date: '2026-03-02', finding: 'TI erosions (2), colon normal, biopsies negative for Crohn\'s', provider: 'Shah' },
