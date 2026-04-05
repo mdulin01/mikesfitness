@@ -11,23 +11,43 @@ const DOC_ID = 'mike-health';
 
 // One-time migration: fix date keys that were stored in UTC instead of local time.
 // Between 8 PM EDT and midnight, toISOString() returned the NEXT day's date.
-// This moves mis-keyed data (2026-04-05) back to the correct date (2026-04-04).
+// This MERGES mis-keyed data from 2026-04-05 into 2026-04-04, then deletes the wrong key.
 function migrateUTCDateKeys(snapData, docRef) {
-  const DATE_KEYED_FIELDS = ['dailyChecklist', 'medicationChecks', 'mealLog', 'fiberLog', 'fastingLog', 'exerciseLog'];
-  // Already migrated?
-  if (snapData._dateFixV1) return snapData;
+  // Already migrated with V2?
+  if (snapData._dateFixV2) return snapData;
 
-  const wrongDate = '2026-04-05'; // UTC date that was actually April 4 EDT
+  const wrongDate = '2026-04-05';
   const correctDate = '2026-04-04';
-  const updates = { _dateFixV1: true };
+  const updates = { _dateFixV2: true };
   let changed = false;
 
-  for (const field of DATE_KEYED_FIELDS) {
+  // Fields where values are objects (merge keys)
+  const OBJ_FIELDS = ['dailyChecklist', 'medicationChecks', 'fiberLog', 'fastingLog'];
+  // Fields where values are arrays (concat + dedupe by id)
+  const ARR_FIELDS = ['mealLog', 'exerciseLog'];
+
+  for (const field of OBJ_FIELDS) {
     const map = snapData[field];
-    if (map && map[wrongDate] && !map[correctDate]) {
-      // Move wrongDate data to correctDate
+    if (map && map[wrongDate]) {
       const newMap = { ...map };
-      newMap[correctDate] = newMap[wrongDate];
+      // Merge: wrong date data INTO correct date (correct date values take priority for conflicts)
+      newMap[correctDate] = { ...(newMap[wrongDate] || {}), ...(newMap[correctDate] || {}) };
+      delete newMap[wrongDate];
+      updates[field] = newMap;
+      changed = true;
+    }
+  }
+
+  for (const field of ARR_FIELDS) {
+    const map = snapData[field];
+    if (map && map[wrongDate]) {
+      const newMap = { ...map };
+      const existing = newMap[correctDate] || [];
+      const wrongEntries = newMap[wrongDate] || [];
+      // Dedupe by id
+      const existingIds = new Set(existing.map(e => e.id));
+      const merged = [...existing, ...wrongEntries.filter(e => !existingIds.has(e.id))];
+      newMap[correctDate] = merged;
       delete newMap[wrongDate];
       updates[field] = newMap;
       changed = true;
@@ -36,23 +56,23 @@ function migrateUTCDateKeys(snapData, docRef) {
 
   // Also fix monthlyGoals dailyChecks
   const mg = snapData.monthlyGoals;
-  if (mg?.['2026-04']?.dailyChecks?.[wrongDate] && !mg?.['2026-04']?.dailyChecks?.[correctDate]) {
+  if (mg?.['2026-04']?.dailyChecks?.[wrongDate]) {
     const newMG = JSON.parse(JSON.stringify(mg));
-    newMG['2026-04'].dailyChecks[correctDate] = newMG['2026-04'].dailyChecks[wrongDate];
+    newMG['2026-04'].dailyChecks[correctDate] = {
+      ...(newMG['2026-04'].dailyChecks[wrongDate] || {}),
+      ...(newMG['2026-04'].dailyChecks[correctDate] || {}),
+    };
     delete newMG['2026-04'].dailyChecks[wrongDate];
     updates.monthlyGoals = newMG;
     changed = true;
   }
 
   if (changed) {
-    console.log('[migration] Moving UTC-keyed data from', wrongDate, 'to', correctDate);
-    setDoc(docRef, stripUndefined(updates), { merge: true }).catch(console.error);
-  } else {
-    // Just persist the flag
-    setDoc(docRef, { _dateFixV1: true }, { merge: true }).catch(console.error);
+    console.log('[migration-v2] Merging UTC-keyed data from', wrongDate, 'into', correctDate);
   }
+  // Always persist the flag (and any data changes)
+  setDoc(docRef, stripUndefined(updates), { merge: true }).catch(console.error);
 
-  // Return corrected data for immediate use
   return { ...snapData, ...updates };
 }
 
