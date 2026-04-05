@@ -188,14 +188,18 @@ export const useHealthData = (user) => {
         snapData = migrateUTCDateKeys(snapData, docRef);
         // Migrate appointments missing category field
         const migratedAppts = migrateAppointments(snapData.appointments || defaultData.appointments);
-        // If migration changed anything, persist it
-        if (snapData.appointments && JSON.stringify(migratedAppts) !== JSON.stringify(snapData.appointments)) {
-          setDoc(docRef, { appointments: migratedAppts }, { merge: true }).catch(console.error);
+        // Ensure code-defined appointments (races, etc.) are always present
+        const existingIds = new Set(migratedAppts.map(a => a.id));
+        const missingDefaults = defaultData.appointments.filter(a => !existingIds.has(a.id));
+        const mergedAppts = [...migratedAppts, ...missingDefaults];
+        // Persist if anything changed
+        if (JSON.stringify(mergedAppts) !== JSON.stringify(snapData.appointments)) {
+          setDoc(docRef, { appointments: mergedAppts }, { merge: true }).catch(console.error);
         }
         setData({
           ...defaultData,
           ...snapData,
-          appointments: migratedAppts,
+          appointments: mergedAppts,
           // Force-update trainingEvents from code so date fixes always apply
           trainingEvents: trainingEvents,
         });
