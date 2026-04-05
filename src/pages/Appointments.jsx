@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { APPOINTMENT_TYPES } from '../constants';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 export default function Appointments({ data, updateAppointment, addAppointment, deleteAppointment, ...rest }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ type: '', doctor: '', date: '', time: '', location: '', notes: '', status: 'scheduled' });
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toLocalDateStr();
 
   const appointments = data?.appointments || [];
   const upcoming = appointments.filter(a => a.status === 'scheduled' && a.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date));

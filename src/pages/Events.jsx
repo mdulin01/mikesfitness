@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ALL_EVENT_TYPES, MEDICAL_EVENT_TYPES, FITNESS_EVENT_TYPES, SOCIAL_EVENT_TYPES } from '../constants';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 const EVENT_CATEGORIES = [
   { id: 'all', label: 'All', emoji: '📅' },
@@ -12,7 +13,7 @@ export default function Events({ data, updateAppointment, addAppointment, delete
   const [showAdd, setShowAdd] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
   const [form, setForm] = useState({ type: '', category: 'medical', doctor: '', date: '', time: '', location: '', notes: '', status: 'scheduled' });
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toLocalDateStr();
 
   const appointments = data?.appointments || [];
 

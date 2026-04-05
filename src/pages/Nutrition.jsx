@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { MEAL_TYPES, MEAL_PRESETS, RECIPE_SUGGESTIONS } from '../constants';
+import { toLocalDateStr, toLocalTimeStr } from '../utils/dateUtils';
 
 export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, saveFastingEntry, saveFastingSettings, saveFiberEntry, ...rest }) {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toLocalDateStr());
   const [showMealModal, setShowMealModal] = useState(false);
   const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '' });
   const [activeTab, setActiveTab] = useState('log'); // 'log' | 'presets' | 'recipes' | 'shopping' | 'guide'
@@ -89,7 +90,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const submitMeal = (e) => {
     e.preventDefault();
     if (!mealForm.description) return;
-    addMeal(selectedDate, { ...mealForm, time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) });
+    addMeal(selectedDate, { ...mealForm, time: toLocalTimeStr() });
     setMealForm({ type: 'lunch', description: '', notes: '' });
     setShowMealModal(false);
   };
@@ -99,7 +100,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       type: preset.type,
       description: preset.label,
       notes: preset.description,
-      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      time: toLocalTimeStr(),
     });
   };
 
@@ -123,10 +124,10 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const changeDate = (offset) => {
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() + offset);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateStr(d));
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === toLocalDateStr();
 
   // Group meals by type
   const groupedMeals = MEAL_TYPES.map(mt => ({
@@ -323,7 +324,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
         <div className="space-y-4">
           {/* Today's fast status */}
           {(() => {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = toLocalDateStr();
             const todayFast = data?.fastingLog?.[todayStr] || {};
             const now = new Date();
             let fastHours = 0, fastMins = 0;
@@ -594,7 +595,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
                         type: 'dinner',
                         description: recipe.name,
                         notes: `Homemade - ${recipe.tags.join(', ')}`,
-                        time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                        time: toLocalTimeStr(),
                       });
                     }}
                       className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500">

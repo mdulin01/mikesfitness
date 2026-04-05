@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { LAB_CATEGORIES } from '../constants';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 // Simple SVG line chart component
 function TrendChart({ entries, dataKey, goalValue, color, label, unit, height = 180 }) {
@@ -80,8 +81,8 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
   const [view, setView] = useState('overview'); // 'overview' | 'weight' | 'labs' | 'meds'
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);
-  const [weightForm, setWeightForm] = useState({ date: new Date().toISOString().split('T')[0], weight: '', bodyFat: '', waist: '', notes: '' });
-  const [labForm, setLabForm] = useState({ date: new Date().toISOString().split('T')[0], marker: '', value: '', unit: '', notes: '' });
+  const [weightForm, setWeightForm] = useState({ date: toLocalDateStr(), weight: '', bodyFat: '', waist: '', notes: '' });
+  const [labForm, setLabForm] = useState({ date: toLocalDateStr(), marker: '', value: '', unit: '', notes: '' });
 
   const weightEntries = data?.weightEntries || [];
   const latestWeight = weightEntries[0];
@@ -107,7 +108,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
       bodyFat: weightForm.bodyFat ? parseFloat(weightForm.bodyFat) : null,
       waist: weightForm.waist ? parseFloat(weightForm.waist) : null,
     });
-    setWeightForm({ date: new Date().toISOString().split('T')[0], weight: '', bodyFat: '', waist: '', notes: '' });
+    setWeightForm({ date: toLocalDateStr(), weight: '', bodyFat: '', waist: '', notes: '' });
     setShowWeightModal(false);
   };
 
@@ -115,7 +116,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
     e.preventDefault();
     if (!labForm.marker || !labForm.value) return;
     addLabResult({ ...labForm, value: parseFloat(labForm.value) });
-    setLabForm({ date: new Date().toISOString().split('T')[0], marker: '', value: '', unit: '', notes: '' });
+    setLabForm({ date: toLocalDateStr(), marker: '', value: '', unit: '', notes: '' });
     setShowLabModal(false);
   };
 

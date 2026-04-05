@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { exercisePlan } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
 import { ALL_EVENT_TYPES, FITNESS_EVENT_TYPES } from '../constants';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 const ACTIVITY_TYPES = [
   { id: 'weights', label: 'Weights', emoji: '🏋️' },
@@ -33,7 +34,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayDow = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toLocalDateStr();
 
   // Navigate weeks
   const [weekOffset, setWeekOffset] = useState(0);
@@ -181,7 +182,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   // Swimming log modal
   const [showSwimModal, setShowSwimModal] = useState(false);
   const [swimForm, setSwimForm] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: toLocalDateStr(),
     laps: '', distance: '', duration: '', notes: '',
   });
 
@@ -194,7 +195,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
       distance: swimForm.distance ? parseInt(swimForm.distance) : null,
       duration: swimForm.duration ? parseInt(swimForm.duration) : null,
     });
-    setSwimForm({ date: new Date().toISOString().split('T')[0], laps: '', distance: '', duration: '', notes: '' });
+    setSwimForm({ date: toLocalDateStr(), laps: '', distance: '', duration: '', notes: '' });
     setShowSwimModal(false);
   };
 
@@ -232,7 +233,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   const changeLiftDate = (offset) => {
     const d = new Date(liftDate + 'T12:00:00');
     d.setDate(d.getDate() + offset);
-    setLiftDate(d.toISOString().split('T')[0]);
+    setLiftDate(toLocalDateStr(d));
   };
   const liftDateIsToday = liftDate === todayStr;
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
