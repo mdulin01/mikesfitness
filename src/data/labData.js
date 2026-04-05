@@ -1,4 +1,4 @@
-// Structured lab results extracted from Labcorp patient portal
+// Structured lab results extracted from Labcorp and NIH patient portals
 // Each entry: { date, source, values: { testName: { value, unit, flag, ref, note? } } }
 
 export const labHistory = [
@@ -54,6 +54,37 @@ export const labHistory = [
       'HbA1c': { value: 5.1, unit: '%', flag: null, ref: '4.8-5.6' },
       'Testosterone': { value: 619, unit: 'ng/dL', flag: null, ref: '264-916' },
       'Vitamin D': { value: 30.6, unit: 'ng/mL', flag: null, ref: '30-100' },
+    },
+  },
+  {
+    date: '2023-09-14',
+    source: 'NIH Clinical Center',
+    provider: 'Ko, Seong',
+    values: {
+      // CBC
+      'WBC': { value: 5.09, unit: 'K/mcL', flag: null, ref: '4.23-9.07' },
+      'RBC': { value: 5.57, unit: 'M/mcL', flag: null, ref: '4.63-6.08' },
+      'Hemoglobin': { value: 16.8, unit: 'g/dL', flag: null, ref: '13.7-17.5' },
+      'Hematocrit': { value: 49.5, unit: '%', flag: null, ref: '40.1-51.0' },
+      'MCV': { value: 88.9, unit: 'fL', flag: null, ref: '79.0-92.2' },
+      'MCH': { value: 30.2, unit: 'pg', flag: null, ref: '25.7-32.2' },
+      'MCHC': { value: 33.9, unit: 'g/dL', flag: null, ref: '32.3-36.5' },
+      'RDW': { value: 13.3, unit: '%', flag: null, ref: '11.6-14.4' },
+      'Platelets': { value: 152, unit: 'K/mcL', flag: 'low', ref: '161-347', note: 'Near-normal at NIH vs consistently low at Labcorp — pseudothrombocytopenia likely' },
+      'MPV': { value: 10.8, unit: 'fL', flag: null, ref: '9.4-12.4' },
+      'Neutrophils': { value: 55.2, unit: '%', flag: null, ref: '34.0-67.9' },
+      'Lymphocytes': { value: 32.2, unit: '%', flag: null, ref: '21.8-53.1' },
+      'Monocytes': { value: 10, unit: '%', flag: null, ref: '5.3-12.2' },
+      'Eosinophils': { value: 2, unit: '%', flag: null, ref: '0.8-7.0' },
+      'Basophils': { value: 0.6, unit: '%', flag: null, ref: '0.2-1.2' },
+      'Neutrophil Abs': { value: 2.81, unit: 'K/mcL', flag: null, ref: '1.78-5.38' },
+      'Lymphocyte Abs': { value: 1.64, unit: 'K/mcL', flag: null, ref: '1.32-3.57' },
+      'Monocyte Abs': { value: 0.51, unit: 'K/mcL', flag: null, ref: '0.30-0.82' },
+      'Eosinophil Abs': { value: 0.1, unit: 'K/mcL', flag: null, ref: '0.04-0.54' },
+      'Basophil Abs': { value: 0.03, unit: 'K/mcL', flag: null, ref: '0.01-0.08' },
+      // Urinalysis
+      'Urine Specific Gravity': { value: 1.008, unit: '', flag: null, ref: '1.002-1.035' },
+      'Urine pH': { value: 7, unit: '', flag: null, ref: '5.0-8.0' },
     },
   },
   {
@@ -293,6 +324,57 @@ export const labHistory = [
       'Factor II': { value: 'Not Detected', unit: '', flag: null, ref: 'Negative' },
     },
   },
+  {
+    date: '2025-09-02',
+    source: 'NIH Clinical Center',
+    provider: 'Ko, Seong',
+    values: {
+      // CBC
+      'WBC': { value: 6.16, unit: 'K/mcL', flag: null, ref: '4.23-9.07' },
+      'RBC': { value: 5.54, unit: 'M/mcL', flag: null, ref: '4.63-6.08' },
+      'Hemoglobin': { value: 16.5, unit: 'g/dL', flag: null, ref: '13.7-17.5' },
+      'Hematocrit': { value: 49.5, unit: '%', flag: null, ref: '40.1-51.0' },
+      'MCV': { value: 89.4, unit: 'fL', flag: null, ref: '79.0-92.2' },
+      'MCH': { value: 29.8, unit: 'pg', flag: null, ref: '25.7-32.2' },
+      'MCHC': { value: 33.3, unit: 'g/dL', flag: null, ref: '32.3-36.5' },
+      'RDW': { value: 13.6, unit: '%', flag: null, ref: '11.6-14.4' },
+      'Platelets': { value: 208, unit: 'K/mcL', flag: null, ref: '161-347', note: 'Normal at NIH — confirms pseudothrombocytopenia at Labcorp (EDTA artifact)' },
+      'MPV': { value: 9.8, unit: 'fL', flag: null, ref: '9.4-12.4' },
+      'Neutrophils': { value: 57.4, unit: '%', flag: null, ref: '34.0-67.9' },
+      'Lymphocytes': { value: 31, unit: '%', flag: null, ref: '21.8-53.1' },
+      'Monocytes': { value: 7.8, unit: '%', flag: null, ref: '5.3-12.2' },
+      'Eosinophils': { value: 2.9, unit: '%', flag: null, ref: '0.8-7.0' },
+      'Basophils': { value: 0.6, unit: '%', flag: null, ref: '0.2-1.2' },
+      'Neutrophil Abs': { value: 3.53, unit: 'K/mcL', flag: null, ref: '1.78-5.38' },
+      'Lymphocyte Abs': { value: 1.91, unit: 'K/mcL', flag: null, ref: '1.32-3.57' },
+      'Monocyte Abs': { value: 0.48, unit: 'K/mcL', flag: null, ref: '0.30-0.82' },
+      'Eosinophil Abs': { value: 0.18, unit: 'K/mcL', flag: null, ref: '0.04-0.54' },
+      'Basophil Abs': { value: 0.04, unit: 'K/mcL', flag: null, ref: '0.01-0.08' },
+      // Acute Care Panel (CMP equivalent)
+      'Sodium': { value: 140, unit: 'mmol/L', flag: null, ref: '136-145' },
+      'Potassium': { value: 3.8, unit: 'mmol/L', flag: null, ref: '3.5-5.1' },
+      'Chloride': { value: 104, unit: 'mmol/L', flag: null, ref: '98-107' },
+      'CO2': { value: 27, unit: 'mmol/L', flag: null, ref: '22-29' },
+      'Creatinine': { value: 1.19, unit: 'mg/dL', flag: 'high', ref: '0.73-1.18' },
+      'eGFR': { value: 71, unit: 'mL/min/1.73', flag: null, ref: '>59', note: 'CKD-EPI 2021 formula' },
+      'Glucose': { value: 95, unit: 'mg/dL', flag: null, ref: '70-99' },
+      'BUN': { value: 17, unit: 'mg/dL', flag: null, ref: '8-26' },
+      // Mineral Panel
+      'Albumin': { value: 4.4, unit: 'g/dL', flag: null, ref: '3.5-5.2' },
+      'Calcium': { value: 9.7, unit: 'mg/dL', flag: null, ref: '8.4-10.2' },
+      'Magnesium': { value: 2, unit: 'mg/dL', flag: null, ref: '1.6-2.6' },
+      'Phosphorus': { value: 2.9, unit: 'mg/dL', flag: null, ref: '2.3-4.7' },
+      // Hepatic Panel
+      'ALP': { value: 58, unit: 'U/L', flag: null, ref: '40-150' },
+      'ALT': { value: 15, unit: 'U/L', flag: null, ref: '0-55' },
+      'AST': { value: 19, unit: 'U/L', flag: null, ref: '5-34' },
+      'Bilirubin': { value: 0.8, unit: 'mg/dL', flag: null, ref: '0.2-1.2' },
+      'Bilirubin Direct': { value: 0.2, unit: 'mg/dL', flag: null, ref: '0.0-0.5' },
+      // Urinalysis
+      'Urine Specific Gravity': { value: 1.004, unit: '', flag: null, ref: '1.002-1.035' },
+      'Urine pH': { value: 7, unit: '', flag: null, ref: '5.0-8.0' },
+    },
+  },
 ];
 
 // Key metrics with current values and goals for the Health page
@@ -376,6 +458,7 @@ export const monitoringSchedule = [
   { test: 'Colonoscopy', frequency: 'Per GI', nextDue: 'TBD', category: 'crohns' },
   { test: 'Coronary calcium', frequency: 'Every 3-5 years', nextDue: 'TBD', category: 'heart' },
   { test: 'DEXA scan', frequency: 'Every 5 years', nextDue: 'TBD', category: 'bone' },
+  { test: 'MRI Abdomen (HPRC)', frequency: 'Every 2 years', nextDue: '2027-09', category: 'cancer' },
   { test: 'Dermatology exam', frequency: 'Yearly', nextDue: '2026', category: 'cancer' },
   { test: 'Eye exam', frequency: 'Yearly', nextDue: '2026', category: 'general' },
   { test: 'PSA', frequency: 'Yearly', nextDue: '2025-10', category: 'cancer' },

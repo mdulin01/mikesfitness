@@ -1,4 +1,4 @@
-// Imaging, procedures, and diagnostic results from Atrium Health MyChart
+// Imaging, procedures, and diagnostic results from Atrium Health MyChart and NIH Clinical Center
 // Structured for display on Medical and Health pages
 
 export const imagingHistory = [
@@ -235,6 +235,41 @@ export const imagingHistory = [
         'No abscess or obstruction',
         'Moderate prostatic enlargement',
       ],
+    },
+  },
+
+  // === NIH MRI SURVEILLANCE (HPRC) ===
+  {
+    date: '2025-09-02',
+    type: 'imaging',
+    category: 'renal',
+    name: 'MRI Abdomen (HPRC Surveillance)',
+    provider: 'Evrim Turkbey, MD',
+    ordering: 'Ko, Seong, MD',
+    source: 'NIH Clinical Center',
+    result: 'Stable',
+    summary: 'Right kidney 0.7cm minimally complex cystic lesion, stable. Left kidney upper pole cortical thinning/scarring. Liver subcentimeter cysts.',
+    details: {
+      indication: 'HPRC surveillance — MET c.3335A>G mutation',
+      rightKidney: '0.7cm minimally complex cystic lesion (stable vs prior 9/14/2023)',
+      leftKidney: 'Upper pole cortical thinning/scarring',
+      liver: 'Subcentimeter cysts',
+      impression: 'Stable renal cystic lesion, no new concerning findings',
+      comparedTo: '2023-09-14',
+    },
+  },
+  {
+    date: '2023-09-14',
+    type: 'imaging',
+    category: 'renal',
+    name: 'MRI Abdomen (HPRC Surveillance)',
+    provider: 'Ko, Seong, MD',
+    source: 'NIH Clinical Center',
+    result: 'Baseline',
+    summary: 'Baseline MRI for HPRC surveillance. Details not accessible from portal.',
+    details: {
+      indication: 'HPRC surveillance — MET c.3335A>G mutation',
+      note: 'Report text not available in FollowMyHealth portal. Used as comparison for 2025 study.',
     },
   },
 
