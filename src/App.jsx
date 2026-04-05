@@ -6,7 +6,7 @@ import Nav from './components/Nav';
 import Dashboard from './pages/Dashboard';
 import Training from './pages/Training';
 import Health from './pages/Health';
-import Appointments from './pages/Appointments';
+import Events from './pages/Events';
 import Nutrition from './pages/Nutrition';
 import Plan from './pages/Plan';
 
@@ -55,8 +55,8 @@ export default function App() {
         return <Training {...healthData} />;
       case 'health':
         return <Health {...healthData} />;
-      case 'appointments':
-        return <Appointments {...healthData} />;
+      case 'events':
+        return <Events {...healthData} />;
       case 'plan':
         return <Plan />;
       default:

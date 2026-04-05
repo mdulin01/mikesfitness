@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
-import { MEAL_TYPES } from '../constants';
+import { MEAL_TYPES, MEAL_PRESETS, RECIPE_SUGGESTIONS } from '../constants';
 
-export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
+export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, ...rest }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showMealModal, setShowMealModal] = useState(false);
-  const [mealForm, setMealForm] = useState({ type: 'breakfast', description: '', notes: '' });
-  const [activeTab, setActiveTab] = useState('log'); // 'log' | 'guide'
+  const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '' });
+  const [activeTab, setActiveTab] = useState('log'); // 'log' | 'presets' | 'recipes' | 'shopping' | 'guide'
+  const [shoppingInput, setShoppingInput] = useState('');
+  const [shoppingCategory, setShoppingCategory] = useState('produce');
+  const [expandedRecipe, setExpandedRecipe] = useState(null);
 
   const meals = data?.mealLog?.[selectedDate] || [];
+  const shoppingList = data?.shoppingList || [];
   const diet = healthPlan.mediterraneanDiet;
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -17,8 +21,33 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
     e.preventDefault();
     if (!mealForm.description) return;
     addMeal(selectedDate, { ...mealForm, time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) });
-    setMealForm({ type: 'breakfast', description: '', notes: '' });
+    setMealForm({ type: 'lunch', description: '', notes: '' });
     setShowMealModal(false);
+  };
+
+  const quickAddPreset = (preset) => {
+    addMeal(selectedDate, {
+      type: preset.type,
+      description: preset.label,
+      notes: preset.description,
+      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    });
+  };
+
+  const addRecipeIngredients = (recipe) => {
+    recipe.ingredients.forEach(item => {
+      // Don't add duplicates
+      if (!shoppingList.some(s => s.item.toLowerCase() === item.toLowerCase())) {
+        addShoppingItem({ item, category: 'recipe' });
+      }
+    });
+  };
+
+  const submitShoppingItem = (e) => {
+    e.preventDefault();
+    if (!shoppingInput.trim()) return;
+    addShoppingItem({ item: shoppingInput.trim(), category: shoppingCategory });
+    setShoppingInput('');
   };
 
   // Navigate dates
@@ -36,20 +65,37 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
     items: meals.filter(m => m.type === mt.id),
   }));
 
+  const SHOPPING_CATEGORIES = [
+    { id: 'produce', label: 'Produce', emoji: '🥬' },
+    { id: 'protein', label: 'Protein', emoji: '🥩' },
+    { id: 'dairy', label: 'Dairy', emoji: '🧀' },
+    { id: 'grains', label: 'Grains', emoji: '🌾' },
+    { id: 'pantry', label: 'Pantry', emoji: '🫒' },
+    { id: 'recipe', label: 'From Recipe', emoji: '📝' },
+    { id: 'other', label: 'Other', emoji: '🛒' },
+  ];
+
+  const checkedCount = shoppingList.filter(i => i.checked).length;
+
+  const tabs = [
+    { id: 'log', label: 'Food Log' },
+    { id: 'presets', label: 'Quick Add' },
+    { id: 'recipes', label: 'Recipes' },
+    { id: 'shopping', label: 'Shopping' },
+    { id: 'guide', label: 'Diet Guide' },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-5 pb-24 md:pb-6">
       <h1 className="text-2xl font-bold text-white">🥗 Nutrition</h1>
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-slate-700/50 rounded-lg p-1">
-        {[
-          { id: 'log', label: 'Food Log' },
-          { id: 'guide', label: 'Diet Guide' },
-        ].map(tab => (
+      <div className="flex gap-1 bg-slate-700/50 rounded-lg p-1 overflow-x-auto">
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap px-2 ${
               activeTab === tab.id ? 'bg-slate-600 text-blue-400 shadow-sm' : 'text-slate-400'
             }`}
           >
@@ -58,6 +104,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
         ))}
       </div>
 
+      {/* ======== FOOD LOG TAB ======== */}
       {activeTab === 'log' && (
         <>
           {/* Date navigator */}
@@ -80,7 +127,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
               <div className="text-4xl mb-2">🍽️</div>
               <p className="text-slate-400">No meals logged for this day.</p>
-              <p className="text-xs text-slate-500 mt-1">Tap the button above to start tracking.</p>
+              <p className="text-xs text-slate-500 mt-1">Tap the button above or use Quick Add for common meals.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -121,6 +168,201 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
         </>
       )}
 
+      {/* ======== QUICK ADD / PRESETS TAB ======== */}
+      {activeTab === 'presets' && (
+        <div className="space-y-4">
+          <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-800/50 rounded-xl p-4">
+            <p className="text-sm text-green-300">Tap a meal to quickly log it for today. These are based on your usual eating patterns.</p>
+          </div>
+
+          {/* Group presets by meal type */}
+          {MEAL_TYPES.map(mt => {
+            const presets = MEAL_PRESETS.filter(p => p.type === mt.id);
+            if (presets.length === 0) return null;
+            return (
+              <div key={mt.id} className="space-y-2">
+                <h3 className="text-sm font-semibold text-slate-300">{mt.emoji} {mt.label}</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {presets.map(preset => (
+                    <button key={preset.id} onClick={() => quickAddPreset(preset)}
+                      className="flex items-center gap-3 p-3 bg-slate-800 border border-slate-700 rounded-xl hover:bg-slate-700 transition-all text-left">
+                      <span className="text-2xl">{preset.emoji}</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-white">{preset.label}</div>
+                        <div className="text-xs text-slate-400">{preset.description}</div>
+                        <div className="flex gap-1 mt-1">
+                          {preset.tags.map(tag => (
+                            <span key={tag} className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded-full">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <span className="text-green-400 text-lg">+</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Your patterns note */}
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 className="text-sm font-semibold text-slate-300 mb-2">📝 Your Patterns</h3>
+            <div className="space-y-1 text-xs text-slate-400">
+              <p>• You usually skip breakfast</p>
+              <p>• Lunch is typically Oatmeal & Fruit or Yogurt & Fruit</p>
+              <p>• Dinner is often a salad, but sometimes eating out</p>
+              <p>• Snack on nuts or fruit between meals</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======== RECIPES TAB ======== */}
+      {activeTab === 'recipes' && (
+        <div className="space-y-3">
+          <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-800/50 rounded-xl p-4">
+            <p className="text-sm text-green-300">Mediterranean diet recipes for healthy, anti-inflammatory meals. Tap to see details and add ingredients to your shopping list.</p>
+          </div>
+
+          {RECIPE_SUGGESTIONS.map(recipe => (
+            <div key={recipe.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <button onClick={() => setExpandedRecipe(expandedRecipe === recipe.id ? null : recipe.id)}
+                className="w-full p-4 flex items-center gap-3 text-left">
+                <span className="text-2xl">{recipe.emoji}</span>
+                <div className="flex-1">
+                  <div className="font-medium text-white">{recipe.name}</div>
+                  <div className="text-xs text-slate-400">⏱ {recipe.time}</div>
+                  <div className="flex gap-1 mt-1">
+                    {recipe.tags.map(tag => (
+                      <span key={tag} className="text-[10px] bg-blue-900/40 text-blue-400 px-1.5 py-0.5 rounded-full">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-slate-500 text-xs">{expandedRecipe === recipe.id ? '▲' : '▼'}</span>
+              </button>
+              {expandedRecipe === recipe.id && (
+                <div className="px-4 pb-4 space-y-3 border-t border-slate-700 pt-3">
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">Ingredients</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {recipe.ingredients.map(ing => (
+                        <span key={ing} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full">{ing}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">Steps</h4>
+                    <p className="text-sm text-slate-300">{recipe.steps}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => addRecipeIngredients(recipe)}
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500">
+                      🛒 Add to Shopping List
+                    </button>
+                    <button onClick={() => {
+                      addMeal(selectedDate, {
+                        type: 'dinner',
+                        description: recipe.name,
+                        notes: `Homemade - ${recipe.tags.join(', ')}`,
+                        time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                      });
+                    }}
+                      className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500">
+                      ✓ Log as Meal
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ======== SHOPPING LIST TAB ======== */}
+      {activeTab === 'shopping' && (
+        <div className="space-y-4">
+          {/* Add item form */}
+          <form onSubmit={submitShoppingItem} className="flex gap-2">
+            <input type="text" placeholder="Add item..." value={shoppingInput}
+              onChange={e => setShoppingInput(e.target.value)}
+              className="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+            <select value={shoppingCategory} onChange={e => setShoppingCategory(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white w-28">
+              {SHOPPING_CATEGORIES.filter(c => c.id !== 'recipe').map(c => (
+                <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+              ))}
+            </select>
+            <button type="submit" className="bg-green-600 text-white px-4 rounded-lg text-sm font-medium">+</button>
+          </form>
+
+          {/* Quick add from Mediterranean staples */}
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 className="text-sm font-semibold text-slate-300 mb-2">🫒 Mediterranean Staples</h3>
+            <div className="flex flex-wrap gap-1">
+              {['Olive oil', 'Salmon', 'Chicken breast', 'Mixed greens', 'Tomatoes', 'Cucumber', 'Greek yogurt', 'Oatmeal', 'Berries', 'Almonds', 'Lemon', 'Garlic', 'Quinoa', 'Chickpeas', 'Feta cheese'].map(item => (
+                <button key={item} onClick={() => {
+                  if (!shoppingList.some(s => s.item.toLowerCase() === item.toLowerCase())) {
+                    addShoppingItem({ item, category: 'pantry' });
+                  }
+                }}
+                  className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                    shoppingList.some(s => s.item.toLowerCase() === item.toLowerCase())
+                      ? 'bg-green-900/40 text-green-400'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}>
+                  {shoppingList.some(s => s.item.toLowerCase() === item.toLowerCase()) ? '✓ ' : '+ '}{item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Shopping list */}
+          {shoppingList.length === 0 ? (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+              <div className="text-4xl mb-2">🛒</div>
+              <p className="text-slate-400">Shopping list is empty.</p>
+              <p className="text-xs text-slate-500 mt-1">Add items above or from recipes.</p>
+            </div>
+          ) : (
+            <>
+              {/* Group by category */}
+              {SHOPPING_CATEGORIES.map(cat => {
+                const items = shoppingList.filter(i => i.category === cat.id);
+                if (items.length === 0) return null;
+                return (
+                  <div key={cat.id} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-2">{cat.emoji} {cat.label}</h3>
+                    <div className="space-y-1">
+                      {items.map(item => (
+                        <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/50">
+                          <button onClick={() => toggleShoppingItem(item.id)}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                              item.checked ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                            }`}>
+                            {item.checked && <span className="text-white text-[10px]">✓</span>}
+                          </button>
+                          <span className={`text-sm flex-1 ${item.checked ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{item.item}</span>
+                          <button onClick={() => deleteShoppingItem(item.id)} className="text-slate-600 hover:text-red-400 text-xs p-1">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Clear checked */}
+              {checkedCount > 0 && (
+                <button onClick={clearCheckedItems}
+                  className="w-full py-2 border border-slate-600 rounded-lg text-sm text-slate-400 hover:text-red-400 transition-colors">
+                  Clear {checkedCount} checked item{checkedCount !== 1 ? 's' : ''}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ======== DIET GUIDE TAB ======== */}
       {activeTab === 'guide' && (
         <div className="space-y-4">
           {/* Overview */}
@@ -198,6 +440,18 @@ export default function Nutrition({ data, addMeal, deleteMeal, ...rest }) {
                   </button>
                 ))}
               </div>
+
+              {/* Quick preset buttons based on selected meal type */}
+              <div className="flex flex-wrap gap-1">
+                {MEAL_PRESETS.filter(p => p.type === mealForm.type).map(preset => (
+                  <button key={preset.id} type="button"
+                    onClick={() => setMealForm(f => ({ ...f, description: preset.label, notes: preset.description }))}
+                    className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full hover:bg-slate-600">
+                    {preset.emoji} {preset.label}
+                  </button>
+                ))}
+              </div>
+
               <input type="text" placeholder="What did you eat?" value={mealForm.description}
                 onChange={e => setMealForm(f => ({ ...f, description: e.target.value }))}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" required autoFocus />

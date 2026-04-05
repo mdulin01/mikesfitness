@@ -13,17 +13,20 @@ const defaultData = {
   weightEntries: [],
   // Lab results
   labResults: [],
-  // Appointments
+  // Appointments / Events
   appointments: [
-    { id: 'gi-may-2026', type: 'gi', doctor: 'GI Doctor', date: '2026-05-18', time: '', location: '', notes: '', status: 'scheduled' },
-    { id: 'primary-jul-2026', type: 'primary', doctor: 'Primary Care', date: '2026-07-17', time: '', location: '', notes: '', status: 'scheduled' },
-    { id: 'cardiology-tbd', type: 'cardiology', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
-    { id: 'dentist-tbd', type: 'dentist', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
-    { id: 'derm-tbd', type: 'dermatology', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    { id: 'gi-may-2026', type: 'gi', category: 'medical', doctor: 'GI Doctor', date: '2026-05-18', time: '', location: '', notes: '', status: 'scheduled' },
+    { id: 'primary-jul-2026', type: 'primary', category: 'medical', doctor: 'Primary Care', date: '2026-07-17', time: '', location: '', notes: '', status: 'scheduled' },
+    { id: 'cardiology-tbd', type: 'cardiology', category: 'medical', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    { id: 'dentist-tbd', type: 'dentist', category: 'medical', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    { id: 'derm-tbd', type: 'dermatology', category: 'medical', doctor: '', date: '', notes: 'Need to schedule', status: 'needs-scheduling' },
+    // Fitness events from training calendar
+    { id: 'half-marathon-event', type: 'half-marathon', category: 'fitness', doctor: '', date: '2026-05-02', time: '', location: 'Indianapolis, IN', notes: 'Indy Half Marathon', status: 'scheduled' },
+    { id: 'triathlon-event', type: 'triathlon', category: 'fitness', doctor: '', date: '2026-09-27', time: '', location: 'Wrightsville Beach, NC', notes: 'Wrightsville Beach Triathlon', status: 'scheduled' },
   ],
   // Medications
   medications: [],
-  // Training events & plans
+  // Training events & plans — ALWAYS use code values (force-update)
   trainingEvents: trainingEvents,
   trainingPlans: {},
   // Weekly workout completions: { '2026-W14': { monday: true, tuesday: false, ... } }
@@ -58,6 +61,9 @@ const defaultData = {
 
   // Swimming log: [{ id, date, laps, distance, duration, notes }]
   swimmingLog: [],
+
+  // Shopping list: [{ id, item, checked, category }]
+  shoppingList: [],
 };
 
 export const useHealthData = (user) => {
@@ -71,7 +77,13 @@ export const useHealthData = (user) => {
     const docRef = doc(db, COLLECTIONS.HEALTH_DATA, DOC_ID);
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        setData({ ...defaultData, ...snap.data() });
+        const snapData = snap.data();
+        setData({
+          ...defaultData,
+          ...snapData,
+          // Force-update trainingEvents from code so date fixes always apply
+          trainingEvents: trainingEvents,
+        });
       } else {
         setDoc(docRef, stripUndefined(defaultData));
         setData(defaultData);
@@ -104,7 +116,7 @@ export const useHealthData = (user) => {
     save({ weightEntries: entries });
   }, [data, save]);
 
-  // ========== APPOINTMENTS ==========
+  // ========== APPOINTMENTS / EVENTS ==========
   const updateAppointment = useCallback((id, updates) => {
     const appts = (data?.appointments || []).map(a =>
       a.id === id ? { ...a, ...updates } : a
@@ -114,7 +126,7 @@ export const useHealthData = (user) => {
   }, [data, save]);
 
   const addAppointment = useCallback((appt) => {
-    const appts = [...(data?.appointments || []), { ...appt, id: `appt-${Date.now()}` }];
+    const appts = [...(data?.appointments || []), { ...appt, id: `event-${Date.now()}` }];
     setData(d => ({ ...d, appointments: appts }));
     save({ appointments: appts });
   }, [data, save]);
@@ -242,6 +254,33 @@ export const useHealthData = (user) => {
     save({ customDailyItems: items });
   }, [save]);
 
+  // ========== SHOPPING LIST ==========
+  const addShoppingItem = useCallback((item) => {
+    const list = [...(data?.shoppingList || []), { ...item, id: Date.now(), checked: false }];
+    setData(d => ({ ...d, shoppingList: list }));
+    save({ shoppingList: list });
+  }, [data, save]);
+
+  const toggleShoppingItem = useCallback((itemId) => {
+    const list = (data?.shoppingList || []).map(i =>
+      i.id === itemId ? { ...i, checked: !i.checked } : i
+    );
+    setData(d => ({ ...d, shoppingList: list }));
+    save({ shoppingList: list });
+  }, [data, save]);
+
+  const deleteShoppingItem = useCallback((itemId) => {
+    const list = (data?.shoppingList || []).filter(i => i.id !== itemId);
+    setData(d => ({ ...d, shoppingList: list }));
+    save({ shoppingList: list });
+  }, [data, save]);
+
+  const clearCheckedItems = useCallback(() => {
+    const list = (data?.shoppingList || []).filter(i => !i.checked);
+    setData(d => ({ ...d, shoppingList: list }));
+    save({ shoppingList: list });
+  }, [data, save]);
+
   return {
     data, loading, save,
     addWeight,
@@ -256,5 +295,7 @@ export const useHealthData = (user) => {
     saveWeekNotes,
     addSwimEntry,
     updateDailyItems,
+    // Shopping list
+    addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems,
   };
 };

@@ -1,17 +1,20 @@
 import { useState, useMemo } from 'react';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
-import { APPOINTMENT_TYPES, MEAL_TYPES } from '../constants';
+import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
 
 const today = () => new Date().toISOString().split('T')[0];
 const dayOfWeek = () => new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
 const DEFAULT_DAILY_ITEMS = [
-  { key: 'workout', label: 'Workout', emoji: '💪', editable: false },
-  { key: 'steps', label: '10,000 steps', emoji: '👟' },
+  { key: 'move', label: 'Move', emoji: '🏃' },
   { key: 'mobility', label: '10 min mobility', emoji: '🧘' },
   { key: 'water', label: '3L water', emoji: '💧' },
   { key: 'sleep', label: '7+ hours sleep', emoji: '😴' },
+  { key: 'social', label: 'Social', emoji: '👥' },
+  { key: 'cognitive', label: 'Cognitive', emoji: '🧠' },
+  { key: 'no-alcohol', label: 'No Alcohol', emoji: '🚫🍺' },
+  { key: 'no-sweets', label: 'No Sweets', emoji: '🚫🍰' },
 ];
 
 export default function Dashboard({
@@ -99,6 +102,11 @@ export default function Dashboard({
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
   const dailyTotal = dailyItems.length;
 
+  // Eat Healthy ring — based on meals logged (target: 2+ healthy meals)
+  const healthyMealCount = todayMeals.length;
+  const healthyMealTarget = 2;
+  const eatHealthyPct = Math.min(1, healthyMealCount / healthyMealTarget);
+
   const submitGoal = (e) => {
     e.preventDefault();
     if (!goalForm.label) return;
@@ -136,40 +144,55 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Progress Ring Row */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+      {/* Progress Ring Row — 4 rings */}
+      <div className="grid grid-cols-4 gap-2">
+        {/* Workout ring */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
+          <div className="relative w-14 h-14 mx-auto mb-1">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#3b82f6" strokeWidth="3"
                 strokeDasharray={`${(daysCompleted / 7) * 100} 100`} strokeLinecap="round" />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-blue-400">{daysCompleted}/7</div>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-blue-400">{daysCompleted}/7</div>
           </div>
-          <div className="text-xs text-slate-400">Workouts</div>
+          <div className="text-xs text-slate-400">Workout</div>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+        {/* Eat Healthy ring */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
+          <div className="relative w-14 h-14 mx-auto mb-1">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#22c55e" strokeWidth="3"
-                strokeDasharray={`${(dailyProgress / dailyTotal) * 100} 100`} strokeLinecap="round" />
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
+                strokeDasharray={`${eatHealthyPct * 100} 100`} strokeLinecap="round" />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-green-400">{dailyProgress}/{dailyTotal}</div>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-emerald-400">{healthyMealCount}/{healthyMealTarget}</div>
           </div>
-          <div className="text-xs text-slate-400">Today</div>
+          <div className="text-xs text-slate-400">Eat Healthy</div>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+        {/* Take Meds ring */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
+          <div className="relative w-14 h-14 mx-auto mb-1">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
               <circle cx="18" cy="18" r="15.9" fill="none" stroke={allDone ? '#22c55e' : '#f59e0b'} strokeWidth="3"
                 strokeDasharray={`${(totalMedChecked / totalMedItems) * 100} 100`} strokeLinecap="round" />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center text-lg">{allDone ? '✅' : '💊'}</div>
           </div>
-          <div className="text-xs text-slate-400">Meds</div>
+          <div className="text-xs text-slate-400">Take Meds</div>
+        </div>
+        {/* Healthy Habits ring */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
+          <div className="relative w-14 h-14 mx-auto mb-1">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#22c55e" strokeWidth="3"
+                strokeDasharray={`${(dailyProgress / dailyTotal) * 100} 100`} strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-green-400">{dailyProgress}/{dailyTotal}</div>
+          </div>
+          <div className="text-xs text-slate-400">Healthy Habits</div>
         </div>
       </div>
 
@@ -194,10 +217,10 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* Daily Checklist */}
+      {/* Today's Healthy Habits */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">Daily Checklist</h2>
+          <h2 className="font-semibold text-white">Today's Healthy Habits</h2>
           <button onClick={startEditChecklist} className="text-xs text-blue-400 hover:underline">Edit ✏️</button>
         </div>
         <div className="space-y-2">
@@ -215,7 +238,7 @@ export default function Dashboard({
         </div>
         {dailyProgress === dailyTotal && dailyTotal > 0 && (
           <div className="mt-3 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
-            <span className="text-green-400 text-sm font-medium">🎉 All items completed! Great job today!</span>
+            <span className="text-green-400 text-sm font-medium">🎉 All habits completed! Great job today!</span>
           </div>
         )}
       </div>
@@ -227,14 +250,7 @@ export default function Dashboard({
 
           {/* Medications group */}
           <div>
-            <button onClick={() => {
-              // Toggle all meds at once if clicking the group header
-              if (!allMedsTaken) {
-                setMedsExpanded(e => !e);
-              } else {
-                setMedsExpanded(e => !e);
-              }
-            }}
+            <button onClick={() => setMedsExpanded(e => !e)}
               className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
                 allMedsTaken ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
               }`}>
@@ -439,31 +455,36 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Upcoming Appointments */}
+      {/* Upcoming Events */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">Upcoming Appointments</h2>
-          <button onClick={() => setActiveSection('appointments')} className="text-sm text-blue-400 hover:underline">View all →</button>
+          <h2 className="font-semibold text-white">Upcoming Events</h2>
+          <button onClick={() => setActiveSection('events')} className="text-sm text-blue-400 hover:underline">View all →</button>
         </div>
         {upcomingAppts.length === 0 && needsScheduling.length === 0 ? (
-          <p className="text-slate-500 text-sm">No upcoming appointments</p>
+          <p className="text-slate-500 text-sm">No upcoming events</p>
         ) : (
           <div className="space-y-2">
             {upcomingAppts.map(appt => {
-              const type = APPOINTMENT_TYPES.find(t => t.id === appt.type) || APPOINTMENT_TYPES[7];
+              const type = ALL_EVENT_TYPES.find(t => t.id === appt.type) || ALL_EVENT_TYPES[ALL_EVENT_TYPES.length - 1];
               return (
                 <div key={appt.id} className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg">
                   <span className="text-xl">{type.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-200">{type.label}</div>
+                    <div className="text-sm font-medium text-slate-200">{appt.notes || type.label}</div>
                     <div className="text-xs text-slate-400">{formatDate(appt.date)} · {daysUntil(appt.date)} days</div>
                   </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    type.category === 'medical' ? 'bg-blue-900/40 text-blue-400' :
+                    type.category === 'fitness' ? 'bg-green-900/40 text-green-400' :
+                    'bg-purple-900/40 text-purple-400'
+                  }`}>{type.category}</span>
                 </div>
               );
             })}
             {needsScheduling.length > 0 && (
               <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-lg">
-                <div className="text-sm font-medium text-amber-400">⚠️ {needsScheduling.length} appointment{needsScheduling.length > 1 ? 's' : ''} need scheduling</div>
+                <div className="text-sm font-medium text-amber-400">⚠️ {needsScheduling.length} event{needsScheduling.length > 1 ? 's' : ''} need scheduling</div>
               </div>
             )}
           </div>
@@ -500,7 +521,7 @@ export default function Dashboard({
       {editingChecklist && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingChecklist(false)}>
           <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white mb-4">Edit Daily Checklist</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Edit Healthy Habits</h3>
             <div className="space-y-2 mb-4">
               {editItems.map((item, i) => (
                 <div key={i} className="flex gap-2 items-center">
