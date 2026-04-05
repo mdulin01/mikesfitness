@@ -7,12 +7,9 @@ import Nav from './components/Nav';
 import Dashboard from './pages/Dashboard';
 import Training from './pages/Training';
 import Health from './pages/Health';
-import Events from './pages/Events';
 import Nutrition from './pages/Nutrition';
-import Trends from './pages/Trends';
 import Medical from './pages/Medical';
-import WeeklyReview from './pages/WeeklyReview';
-import Plan from './pages/Plan';
+import Life from './pages/Life';
 
 export default function App() {
   const { user, loading: authLoading, login, logout } = useAuth();
@@ -59,16 +56,10 @@ export default function App() {
         return <Training {...healthData} />;
       case 'health':
         return <Health {...healthData} />;
-      case 'events':
-        return <Events {...healthData} />;
-      case 'trends':
-        return <Trends {...healthData} />;
       case 'medical':
         return <Medical {...healthData} />;
-      case 'review':
-        return <WeeklyReview {...healthData} />;
-      case 'plan':
-        return <Plan />;
+      case 'life':
+        return <Life {...healthData} />;
       default:
         return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
     }
@@ -80,7 +71,7 @@ export default function App() {
         <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
         {renderSection()}
         <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-          Made by Mike Dulin, MD · Build 9
+          Made by Mike Dulin, MD · Build 10
         </footer>
       </div>
     </ToastProvider>
