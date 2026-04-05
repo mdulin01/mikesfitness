@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase-config';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, deleteField } from 'firebase/firestore';
 import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 import { toLocalDateStr } from '../utils/dateUtils';
@@ -11,72 +11,50 @@ const DOC_ID = 'mike-health';
 
 // One-time migration: fix date keys that were stored in UTC instead of local time.
 // Between 8 PM EDT and midnight, toISOString() returned the NEXT day's date.
-// This MERGES mis-keyed data from 2026-04-05 into 2026-04-04, then deletes the wrong key.
+// Uses deleteField() to properly remove nested map keys from Firestore.
 function migrateUTCDateKeys(snapData, docRef) {
-  // Already migrated with V2?
-  if (snapData._dateFixV2) return snapData;
+  if (snapData._dateFixV3) return snapData;
 
   const wrongDate = '2026-04-05';
   const correctDate = '2026-04-04';
-  const updates = { _dateFixV2: true };
+  const ALL_FIELDS = ['dailyChecklist', 'medicationChecks', 'mealLog', 'fiberLog', 'fastingLog', 'exerciseLog'];
+  const OBJ_FIELDS = new Set(['dailyChecklist', 'medicationChecks', 'fiberLog', 'fastingLog']);
   let changed = false;
 
-  // Fields where values are objects (merge keys)
-  const OBJ_FIELDS = ['dailyChecklist', 'medicationChecks', 'fiberLog', 'fastingLog'];
-  // Fields where values are arrays (concat + dedupe by id)
-  const ARR_FIELDS = ['mealLog', 'exerciseLog'];
+  // Build Firestore-compatible update using dot notation + deleteField()
+  const updates = { _dateFixV3: true };
+  // Also build local corrected data
+  const localFixes = {};
 
-  for (const field of OBJ_FIELDS) {
+  for (const field of ALL_FIELDS) {
     const map = snapData[field];
-    if (map && map[wrongDate]) {
-      const newMap = { ...map };
-      // Merge: wrong date data INTO correct date (correct date values take priority for conflicts)
-      newMap[correctDate] = { ...(newMap[wrongDate] || {}), ...(newMap[correctDate] || {}) };
-      delete newMap[wrongDate];
-      updates[field] = newMap;
-      changed = true;
-    }
-  }
-
-  for (const field of ARR_FIELDS) {
-    const map = snapData[field];
-    if (map && map[wrongDate]) {
-      const newMap = { ...map };
-      const existing = newMap[correctDate] || [];
-      const wrongEntries = newMap[wrongDate] || [];
-      // Dedupe by id
-      const existingIds = new Set(existing.map(e => e.id));
-      const merged = [...existing, ...wrongEntries.filter(e => !existingIds.has(e.id))];
-      newMap[correctDate] = merged;
-      delete newMap[wrongDate];
-      updates[field] = newMap;
-      changed = true;
-    }
-  }
-
-  // Also fix monthlyGoals dailyChecks
-  const mg = snapData.monthlyGoals;
-  if (mg?.['2026-04']?.dailyChecks?.[wrongDate]) {
-    const newMG = JSON.parse(JSON.stringify(mg));
-    newMG['2026-04'].dailyChecks[correctDate] = {
-      ...(newMG['2026-04'].dailyChecks[wrongDate] || {}),
-      ...(newMG['2026-04'].dailyChecks[correctDate] || {}),
-    };
-    delete newMG['2026-04'].dailyChecks[wrongDate];
-    updates.monthlyGoals = newMG;
+    if (!map || !map[wrongDate]) continue;
     changed = true;
+
+    // Merge into correct date locally
+    if (OBJ_FIELDS.has(field)) {
+      localFixes[field] = { ...map, [correctDate]: { ...(map[wrongDate] || {}), ...(map[correctDate] || {}) } };
+    } else {
+      // Array fields: concat + dedupe
+      const existing = map[correctDate] || [];
+      const wrong = map[wrongDate] || [];
+      const ids = new Set(existing.map(e => e.id));
+      localFixes[field] = { ...map, [correctDate]: [...existing, ...wrong.filter(e => !ids.has(e.id))] };
+    }
+    delete localFixes[field][wrongDate];
+
+    // For Firestore: use dot-path to delete the nested key
+    updates[`${field}.${wrongDate}`] = deleteField();
+    // And set the merged correct-date value
+    updates[`${field}.${correctDate}`] = localFixes[field][correctDate];
   }
 
   if (changed) {
-    console.log('[migration-v2] Merging UTC-keyed data from', wrongDate, 'into', correctDate, updates);
-  } else {
-    console.log('[migration-v2] No data found under', wrongDate, 'to migrate. Fields checked:',
-      [...OBJ_FIELDS, ...ARR_FIELDS].map(f => `${f}: ${JSON.stringify(Object.keys(snapData[f] || {}))}`));
+    console.log('[migration-v3] Deleting', wrongDate, 'keys from Firestore');
   }
-  // Always persist the flag (and any data changes)
-  setDoc(docRef, stripUndefined(updates), { merge: true }).catch(console.error);
+  setDoc(docRef, updates, { merge: true }).catch(console.error);
 
-  return { ...snapData, ...updates };
+  return { ...snapData, ...localFixes, _dateFixV3: true };
 }
 
 // Map known appointment type IDs to categories for migration

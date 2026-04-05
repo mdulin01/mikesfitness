@@ -71,6 +71,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-900">
       <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
       {renderSection()}
+      <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
+        Made by Mike Dulin, MD · Build 4
+      </footer>
     </div>
   );
 }
