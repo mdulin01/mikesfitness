@@ -19,7 +19,72 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const diet = healthPlan.mediterraneanDiet;
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
 
+  // Nutrition targets from healthPlan
+  const targets = healthPlan?.nutritionTargets || { protein: 120, fiber: 30, plants: 5, water: 80 };
+
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // Calculate nutrition metrics for a given date
+  const calculateNutritionMetrics = (dateStr) => {
+    const dateMeals = data?.mealLog?.[dateStr] || [];
+    const dailyChecklist = data?.dailyChecklist?.[dateStr] || {};
+    const fiberLog = data?.fiberLog?.[dateStr] || {};
+
+    // Protein: count meals with 'protein' tag or description. Each ~30g. Full score if >= 4
+    const proteinMeals = dateMeals.filter(m =>
+      m.description?.toLowerCase().includes('protein') ||
+      m.notes?.toLowerCase().includes('protein') ||
+      (m.tags && m.tags.some(t => t.toLowerCase().includes('protein')))
+    ).length;
+    const proteinEstimate = Math.min(120, proteinMeals * 30);
+    const proteinScore = Math.min(25, (proteinMeals >= 4 ? 25 : (proteinMeals / 4) * 25));
+
+    // Fiber: morning + evening fiber supplement = 10 pts, each fiber food = 3 pts, cap at 25
+    const fiberSupplements = (fiberLog.morning ? 1 : 0) + (fiberLog.evening ? 1 : 0);
+    const fiberFoods = dateMeals.filter(m =>
+      m.description?.toLowerCase().includes('fiber') ||
+      m.notes?.toLowerCase().includes('fiber') ||
+      (m.tags && m.tags.some(t => t.toLowerCase().includes('fiber')))
+    ).length;
+    const fiberEstimate = (fiberSupplements * 10) + (fiberFoods * 3);
+    const fiberScore = Math.min(25, fiberEstimate > 0 ? Math.min(25, (fiberEstimate / 30) * 25) : 0);
+
+    // Plants: count meals with vegetables/salads/fruits. Each = 1 serving. Scale to 20 pts
+    const plantServings = dateMeals.filter(m =>
+      m.description?.toLowerCase().includes('vegetable') ||
+      m.description?.toLowerCase().includes('salad') ||
+      m.description?.toLowerCase().includes('fruit') ||
+      m.description?.toLowerCase().includes('berry') ||
+      (m.tags && m.tags.some(t =>
+        t.toLowerCase().includes('vegetable') ||
+        t.toLowerCase().includes('salad') ||
+        t.toLowerCase().includes('fruit')
+      ))
+    ).length;
+    const plantsScore = Math.min(20, (plantServings / 5) * 20);
+
+    // No alcohol: check dailyChecklist
+    const noAlcoholScore = dailyChecklist['no-alcohol'] ? 15 : 0;
+
+    // Low sugar: check dailyChecklist
+    const lowSugarScore = dailyChecklist['no-sweets'] ? 15 : 0;
+
+    const totalScore = Math.round(proteinScore + fiberScore + plantsScore + noAlcoholScore + lowSugarScore);
+
+    return {
+      score: totalScore,
+      proteinEstimate,
+      proteinScore,
+      fiberEstimate: Math.min(30, fiberEstimate),
+      fiberScore,
+      plantServings,
+      plantsScore,
+      noAlcoholScore,
+      lowSugarScore,
+    };
+  };
+
+  const metrics = calculateNutritionMetrics(selectedDate);
 
   const submitMeal = (e) => {
     e.preventDefault();
@@ -112,6 +177,86 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       {/* ======== FOOD LOG TAB ======== */}
       {activeTab === 'log' && (
         <>
+          {/* Nutrition Score Banner */}
+          <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-800/50 rounded-xl p-6 text-center">
+            <div className="mb-2 text-xs text-slate-400 uppercase tracking-wide">Nutrition Score</div>
+            <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mb-3">
+              {metrics.score}
+            </div>
+            <div className="text-sm text-slate-300 mb-4">/ 100</div>
+            <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
+              <div
+                className={`h-3 rounded-full transition-all ${
+                  metrics.score >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                  metrics.score >= 60 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+                  metrics.score >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-500' :
+                  'bg-gradient-to-r from-red-500 to-orange-500'
+                }`}
+                style={{ width: `${(metrics.score / 100) * 100}%` }}
+              />
+            </div>
+            <div className="text-xs text-slate-400 mt-2">
+              {metrics.score >= 80 ? '🎉 Excellent nutrition day!' :
+              metrics.score >= 60 ? '👍 Good progress!' :
+              metrics.score >= 40 ? '⚠️ Room for improvement' :
+              '💪 Keep working on it'}
+            </div>
+          </div>
+
+          {/* Daily Targets Display */}
+          <div className="space-y-2">
+            {/* Protein */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🥩 Protein</span>
+                <span className="text-xs font-medium text-blue-400">{metrics.proteinEstimate} / {targets.protein}g</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-blue-500 transition-all"
+                  style={{ width: `${Math.min(100, (metrics.proteinEstimate / targets.protein) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Fiber */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🌾 Fiber</span>
+                <span className="text-xs font-medium text-emerald-400">{Math.round(metrics.fiberEstimate)} / {targets.fiber}g</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${Math.min(100, (metrics.fiberEstimate / targets.fiber) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Plants / Servings */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🥬 Plants</span>
+                <span className="text-xs font-medium text-green-400">{metrics.plantServings} / {targets.plants} servings</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-green-500 transition-all"
+                  style={{ width: `${Math.min(100, (metrics.plantServings / targets.plants) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Water reminder */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300">💧 Water</span>
+                <span className="text-xs font-medium text-cyan-400">{targets.water} oz target</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1">Aim for 8-10 glasses throughout the day</div>
+            </div>
+          </div>
+
           {/* Date navigator */}
           <div className="flex items-center justify-between">
             <button onClick={() => changeDate(-1)} className="p-2 text-slate-400 hover:text-slate-200">← Prev</button>
