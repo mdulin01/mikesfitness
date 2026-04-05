@@ -2,80 +2,7 @@ import { useState, useMemo } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { LAB_CATEGORIES } from '../constants';
 import { toLocalDateStr } from '../utils/dateUtils';
-
-// Simple SVG line chart component
-function TrendChart({ entries, dataKey, goalValue, color, label, unit, height = 180 }) {
-  if (entries.length < 2) return null;
-
-  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
-  const values = sorted.map(e => e[dataKey]).filter(v => v != null);
-  if (values.length < 2) return null;
-
-  const dates = sorted.filter(e => e[dataKey] != null);
-  const padding = { top: 20, right: 15, bottom: 30, left: 45 };
-  const width = 400;
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const minVal = Math.min(...values, goalValue) - 2;
-  const maxVal = Math.max(...values, goalValue) + 2;
-  const range = maxVal - minVal || 1;
-
-  const scaleX = (i) => padding.left + (i / (dates.length - 1)) * chartW;
-  const scaleY = (v) => padding.top + chartH - ((v - minVal) / range) * chartH;
-
-  const points = dates.map((e, i) => `${scaleX(i)},${scaleY(e[dataKey])}`).join(' ');
-  const goalY = scaleY(goalValue);
-
-  // Show ~5 date labels
-  const labelInterval = Math.max(1, Math.floor(dates.length / 5));
-
-  return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-      <h3 className="text-sm font-semibold text-slate-300 mb-2">{label} Trend</h3>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map(pct => {
-          const y = padding.top + chartH * (1 - pct);
-          const val = (minVal + range * pct).toFixed(1);
-          return (
-            <g key={pct}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#334155" strokeWidth="0.5" />
-              <text x={padding.left - 5} y={y + 3} textAnchor="end" fill="#64748b" fontSize="9">{val}</text>
-            </g>
-          );
-        })}
-
-        {/* Goal line */}
-        <line x1={padding.left} y1={goalY} x2={width - padding.right} y2={goalY}
-          stroke="#22c55e" strokeWidth="1" strokeDasharray="4 3" />
-        <text x={width - padding.right + 2} y={goalY + 3} fill="#22c55e" fontSize="8">Goal</text>
-
-        {/* Data line */}
-        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Data points */}
-        {dates.map((e, i) => (
-          <circle key={i} cx={scaleX(i)} cy={scaleY(e[dataKey])} r="3" fill={color} stroke="#1e293b" strokeWidth="1.5" />
-        ))}
-
-        {/* Date labels */}
-        {dates.map((e, i) => {
-          if (i % labelInterval !== 0 && i !== dates.length - 1) return null;
-          const d = new Date(e.date + 'T12:00:00');
-          const lbl = `${d.getMonth() + 1}/${d.getDate()}`;
-          return (
-            <text key={i} x={scaleX(i)} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="8">{lbl}</text>
-          );
-        })}
-      </svg>
-      <div className="flex justify-between text-xs text-slate-500 mt-1">
-        <span>Latest: <span className="text-white font-medium">{values[values.length - 1]}{unit}</span></span>
-        <span>Goal: <span className="text-green-400 font-medium">{goalValue}{unit}</span></span>
-      </div>
-    </div>
-  );
-}
+import TrendChart from '../components/TrendChart';
 
 export default function Health({ data, addWeight, addLabResult, ...rest }) {
   const [view, setView] = useState('overview'); // 'overview' | 'weight' | 'labs' | 'meds'
@@ -302,24 +229,28 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
           )}
 
           {/* Weight trend chart */}
-          <TrendChart
-            entries={weightEntries}
-            dataKey="weight"
-            goalValue={goals.target}
-            color="#3b82f6"
-            label="Weight"
-            unit=" lbs"
-          />
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 className="text-sm font-semibold text-white mb-2">⚖️ Weight</h3>
+            <TrendChart
+              data={(weightEntries || []).filter(e => e.weight).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.weight }))}
+              goalValue={goals.target}
+              color="#3b82f6"
+              label="Weight"
+              unit=" lbs"
+            />
+          </div>
 
           {/* Body fat trend chart */}
-          <TrendChart
-            entries={weightEntries}
-            dataKey="bodyFat"
-            goalValue={goals.bodyFatTarget}
-            color="#a855f7"
-            label="Body Fat %"
-            unit="%"
-          />
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 className="text-sm font-semibold text-white mb-2">📐 Body Fat %</h3>
+            <TrendChart
+              data={(weightEntries || []).filter(e => e.bodyFat).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.bodyFat }))}
+              goalValue={goals.bodyFatTarget}
+              color="#a855f7"
+              label="Body Fat %"
+              unit="%"
+            />
+          </div>
 
           {/* Data table */}
           {weightEntries.length === 0 ? (

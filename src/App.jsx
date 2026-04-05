@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useHealthData } from './hooks/useHealthData';
+import { ToastProvider } from './components/Toast';
 import LoginScreen from './components/LoginScreen';
 import Nav from './components/Nav';
 import Dashboard from './pages/Dashboard';
@@ -74,12 +75,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
-      {renderSection()}
-      <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-        Made by Mike Dulin, MD · Build 7
-      </footer>
-    </div>
+    <ToastProvider>
+      <div className="min-h-screen bg-slate-900">
+        <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
+        {renderSection()}
+        <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
+          Made by Mike Dulin, MD · Build 8
+        </footer>
+      </div>
+    </ToastProvider>
   );
 }

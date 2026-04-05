@@ -5,6 +5,7 @@ import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 import { toLocalDateStr } from '../utils/dateUtils';
 
+// Remove undefined values before writing to Firestore (null is kept intentionally for resets)
 const stripUndefined = (obj) => JSON.parse(JSON.stringify(obj));
 
 const DOC_ID = 'mike-health';
@@ -164,15 +165,19 @@ export const useHealthData = (user) => {
         let snapData = snap.data();
         // Migrate UTC date keys to local date keys (one-time fix)
         snapData = migrateUTCDateKeys(snapData, docRef);
-        // Migrate appointments missing category field
+        // Migrate appointments missing category field + inject defaults (one-time)
         const migratedAppts = migrateAppointments(snapData.appointments || defaultData.appointments);
-        // Ensure code-defined appointments (races, etc.) are always present
         const existingIds = new Set(migratedAppts.map(a => a.id));
         const missingDefaults = defaultData.appointments.filter(a => !existingIds.has(a.id));
-        const mergedAppts = [...migratedAppts, ...missingDefaults];
-        // Persist if anything changed
-        if (JSON.stringify(mergedAppts) !== JSON.stringify(snapData.appointments)) {
-          setDoc(docRef, { appointments: mergedAppts }, { merge: true }).catch(console.error);
+        const mergedAppts = missingDefaults.length > 0 || migratedAppts.some((a, i) => !a.category && snapData.appointments?.[i]?.category !== a.category)
+          ? [...migratedAppts, ...missingDefaults]
+          : migratedAppts;
+        // Only persist if we actually added missing defaults or fixed categories
+        if (missingDefaults.length > 0 || migratedAppts !== (snapData.appointments || defaultData.appointments)) {
+          const needsWrite = missingDefaults.length > 0 || migratedAppts.some(a => !(snapData.appointments || []).find(sa => sa.id === a.id && sa.category === a.category));
+          if (needsWrite) {
+            setDoc(docRef, { appointments: mergedAppts }, { merge: true }).catch(console.error);
+          }
         }
         setData({
           ...defaultData,

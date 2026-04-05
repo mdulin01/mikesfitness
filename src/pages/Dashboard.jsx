@@ -152,8 +152,8 @@ export default function Dashboard({
 
   // ===== HEALTH SCORE (0-100) =====
   const healthScore = useMemo(() => {
-    // Exercise (20 pts): did you work out today?
-    const workoutDone = completions[todayDow] || dailyChecks['workout'] || false;
+    // Exercise (20 pts): did you work out today? Use daily checklist as source of truth
+    const workoutDone = dailyChecks['workout'] || false;
     const exercisePts = workoutDone ? 20 : (dailyChecks['move'] ? 10 : 0);
 
     // Nutrition (20 pts): meals logged + fiber (Benefiber AM + Psyllium PM)
@@ -164,10 +164,8 @@ export default function Dashboard({
     // Sleep (20 pts): sleep habit checked
     const sleepPts = dailyChecks['sleep'] ? 20 : 0;
 
-    // Med adherence (20 pts): proportional to meds+supplements taken
-    const totalMeds = healthPlan.medications.length + healthPlan.supplements.length;
-    const takenMeds = medsTakenCount + supsTakenCount;
-    const medPts = totalMeds > 0 ? Math.round((takenMeds / totalMeds) * 20) : 0;
+    // Med adherence (20 pts): proportional to scheduled items taken
+    const medPts = totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0;
 
     // Weight/Labs trend (20 pts): based on weight trend toward goal
     const weights = data?.weightEntries || [];
