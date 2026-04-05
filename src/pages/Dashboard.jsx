@@ -32,9 +32,22 @@ function Section({ title, emoji, defaultOpen = true, rightAction, children }) {
   );
 }
 
+const FIBER_FOODS = [
+  { id: 'oatmeal', label: 'Oatmeal', emoji: '🥣' },
+  { id: 'lentils', label: 'Lentils', emoji: '🫘' },
+  { id: 'beans', label: 'Beans', emoji: '🫘' },
+  { id: 'broccoli', label: 'Broccoli', emoji: '🥦' },
+  { id: 'berries', label: 'Berries', emoji: '🫐' },
+  { id: 'chia', label: 'Chia seeds', emoji: '🌱' },
+  { id: 'avocado', label: 'Avocado', emoji: '🥑' },
+  { id: 'almonds', label: 'Almonds', emoji: '🥜' },
+  { id: 'sweet-potato', label: 'Sweet potato', emoji: '🍠' },
+  { id: 'whole-wheat', label: 'Whole wheat', emoji: '🌾' },
+];
+
 export default function Dashboard({
   data, toggleDayCompletion, getWeekKey, toggleDailyItem, setActiveSection,
-  toggleMedCheck,
+  toggleMedCheck, saveFastingEntry, saveFiberEntry,
   getMonthKey,
   updateDailyItems, ...rest
 }) {
@@ -49,6 +62,14 @@ export default function Dashboard({
   const todayPlan = exercisePlan.weeklySchedule.find(d => d.day.toLowerCase() === todayDow);
 
   const dailyItems = data?.customDailyItems || DEFAULT_DAILY_ITEMS;
+
+  // Fasting data
+  const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
+  const todayFasting = data?.fastingLog?.[todayStr] || {};
+  const fastActive = todayFasting.fastStart && !todayFasting.fastEnd;
+
+  // Fiber data
+  const todayFiber = data?.fiberLog?.[todayStr] || {};
 
   // Collapsible sections
   const [medsExpanded, setMedsExpanded] = useState(false);
@@ -95,9 +116,11 @@ export default function Dashboard({
   const medsTakenCount = healthPlan.medications.filter(m => medChecks[m.name]).length;
   const allSupsTaken = healthPlan.supplements.every(s => medChecks[s.name]);
   const supsTakenCount = healthPlan.supplements.filter(s => medChecks[s.name]).length;
-  const fiberTaken = medChecks['Fiber'];
-  const totalMedItems = healthPlan.medications.length + healthPlan.supplements.length + 1;
-  const totalMedChecked = medsTakenCount + supsTakenCount + (fiberTaken ? 1 : 0);
+  const fiberMorning = todayFiber.morning || false;
+  const fiberEvening = todayFiber.evening || false;
+  const fiberCount = (fiberMorning ? 1 : 0) + (fiberEvening ? 1 : 0);
+  const totalMedItems = healthPlan.medications.length + healthPlan.supplements.length + 2; // +2 for fiber AM/PM
+  const totalMedChecked = medsTakenCount + supsTakenCount + fiberCount;
   const allDone = totalMedChecked === totalMedItems;
 
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
@@ -269,16 +292,51 @@ export default function Dashboard({
             )}
           </div>
 
-          {/* Fiber */}
-          <button onClick={() => toggleMedCheck(todayStr, 'Fiber')}
-            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-              fiberTaken ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-            }`}>
-            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-              fiberTaken ? 'border-green-500 bg-green-500' : 'border-slate-500'
-            }`}>{fiberTaken && <span className="text-white text-xs">✓</span>}</div>
-            <span className={`text-sm ${fiberTaken ? 'text-green-400 line-through' : 'text-slate-300'}`}>🌾 Fiber</span>
-          </button>
+          {/* Fiber — Morning & Evening */}
+          <div className={`p-3 rounded-lg transition-all ${
+            fiberCount === 2 ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-slate-300">🌾 Fiber ({fiberCount}/2)</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => saveFiberEntry(todayStr, { morning: !fiberMorning })}
+                className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-xs transition-all ${
+                  fiberMorning ? 'bg-green-900/40 border border-green-700 text-green-400' : 'bg-slate-600/50 border border-slate-500 text-slate-400 hover:bg-slate-600'
+                }`}>
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                  fiberMorning ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                }`}>{fiberMorning && <span className="text-white text-[10px]">✓</span>}</div>
+                AM
+              </button>
+              <button onClick={() => saveFiberEntry(todayStr, { evening: !fiberEvening })}
+                className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-xs transition-all ${
+                  fiberEvening ? 'bg-green-900/40 border border-green-700 text-green-400' : 'bg-slate-600/50 border border-slate-500 text-slate-400 hover:bg-slate-600'
+                }`}>
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                  fiberEvening ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                }`}>{fiberEvening && <span className="text-white text-[10px]">✓</span>}</div>
+                PM
+              </button>
+            </div>
+            {/* Fiber-rich foods eaten today */}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {FIBER_FOODS.map(f => {
+                const eaten = (todayFiber.foods || []).includes(f.id);
+                return (
+                  <button key={f.id} onClick={() => {
+                    const foods = todayFiber.foods || [];
+                    saveFiberEntry(todayStr, { foods: eaten ? foods.filter(x => x !== f.id) : [...foods, f.id] });
+                  }}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full transition-all ${
+                      eaten ? 'bg-green-900/40 text-green-400 border border-green-700' : 'bg-slate-600/50 text-slate-500 hover:text-slate-300'
+                    }`}>
+                    {f.emoji} {f.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Supplements group */}
           <div>
@@ -345,6 +403,80 @@ export default function Dashboard({
             {todayMeals.length > 4 && <p className="text-xs text-slate-500 text-center">+{todayMeals.length - 4} more</p>}
           </div>
         )}
+      </Section>
+
+      {/* Intermittent Fasting Tracker */}
+      <Section title="Intermittent Fasting" emoji="⏱️" defaultOpen={true}>
+        {(() => {
+          const now = new Date();
+          let fastHours = 0;
+          let fastMins = 0;
+          if (todayFasting.fastStart) {
+            const end = todayFasting.fastEnd ? new Date(todayFasting.fastEnd) : now;
+            const start = new Date(todayFasting.fastStart);
+            const diff = (end - start) / 1000 / 60;
+            fastHours = Math.floor(diff / 60);
+            fastMins = Math.floor(diff % 60);
+          }
+          const pct = Math.min(1, (fastHours + fastMins / 60) / fastingSettings.targetFastHours);
+          const metGoal = (fastHours + fastMins / 60) >= fastingSettings.targetFastHours;
+
+          return (
+            <div className="space-y-3">
+              {/* Status bar */}
+              <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                fastActive ? 'bg-amber-900/30 border border-amber-700' :
+                metGoal ? 'bg-green-900/30 border border-green-700' :
+                'bg-slate-700/50 border border-slate-600'
+              }`}>
+                <div className="text-2xl">{fastActive ? '🔥' : metGoal ? '✅' : '🍽️'}</div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-white">
+                    {fastActive ? 'Fasting' : metGoal ? 'Fast complete!' : todayFasting.fastEnd ? 'Feeding window' : 'Not started'}
+                  </div>
+                  {todayFasting.fastStart && (
+                    <div className="text-xs text-slate-400">
+                      {fastHours}h {fastMins}m {fastActive ? 'fasted' : 'total fast'} / {fastingSettings.targetFastHours}h goal
+                    </div>
+                  )}
+                </div>
+                {!todayFasting.fastStart ? (
+                  <button onClick={() => saveFastingEntry(todayStr, { fastStart: new Date().toISOString() })}
+                    className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-500">
+                    Start Fast
+                  </button>
+                ) : fastActive ? (
+                  <button onClick={() => saveFastingEntry(todayStr, { fastEnd: new Date().toISOString() })}
+                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-500">
+                    End Fast
+                  </button>
+                ) : (
+                  <button onClick={() => saveFastingEntry(todayStr, { fastStart: null, fastEnd: null })}
+                    className="px-3 py-1.5 bg-slate-600 text-white rounded-lg text-xs font-medium hover:bg-slate-500">
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              {todayFasting.fastStart && (
+                <div>
+                  <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className={`rounded-full h-2 transition-all ${metGoal ? 'bg-green-500' : 'bg-amber-500'}`}
+                      style={{ width: `${pct * 100}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Feeding window info */}
+              <div className="flex gap-2 text-xs text-slate-500">
+                <span>Feeding: {fastingSettings.typicalFeedingStart} – {fastingSettings.typicalFastStart}</span>
+                <span>·</span>
+                <span>{fastingSettings.targetFastHours}:{String(fastingSettings.feedingWindowHours).padStart(2,'0')} fast:feed</span>
+              </div>
+            </div>
+          );
+        })()}
       </Section>
 
       {/* This Week's Schedule */}

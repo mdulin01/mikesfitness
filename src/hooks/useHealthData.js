@@ -1,12 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase-config';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { COLLECTIONS } from '../constants';
+import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 
 const stripUndefined = (obj) => JSON.parse(JSON.stringify(obj));
 
 const DOC_ID = 'mike-health';
+
+// Map known appointment type IDs to categories for migration
+const FITNESS_TYPE_IDS = new Set(FITNESS_EVENT_TYPES.map(t => t.id));
+
+// Migrate appointments that are missing the category field
+function migrateAppointments(appointments) {
+  if (!appointments) return appointments;
+  return appointments.map(a => {
+    if (a.category) return a; // already has category
+    if (FITNESS_TYPE_IDS.has(a.type)) return { ...a, category: 'fitness' };
+    // Check by id pattern
+    if (a.id?.includes('marathon') || a.id?.includes('triathlon')) return { ...a, category: 'fitness' };
+    return { ...a, category: 'medical' }; // default old appointments to medical
+  });
+}
 
 const defaultData = {
   // Weight tracking
@@ -70,6 +85,20 @@ const defaultData = {
 
   // Exercise log: { '2026-04-04': [{ id, exercise, sets: [{ weight, reps }], notes }] }
   exerciseLog: {},
+
+  // Intermittent fasting log: { '2026-04-04': { fastStart, fastEnd, feedingWindowHours, notes } }
+  fastingLog: {},
+
+  // Fasting settings (defaults)
+  fastingSettings: {
+    targetFastHours: 16,
+    feedingWindowHours: 8,
+    typicalFastStart: '20:00',
+    typicalFeedingStart: '12:00',
+  },
+
+  // Fiber tracking: { '2026-04-04': { morning: true, evening: true, foods: ['oatmeal', 'lentils'] } }
+  fiberLog: {},
 };
 
 export const useHealthData = (user) => {
@@ -84,9 +113,16 @@ export const useHealthData = (user) => {
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const snapData = snap.data();
+        // Migrate appointments missing category field
+        const migratedAppts = migrateAppointments(snapData.appointments || defaultData.appointments);
+        // If migration changed anything, persist it
+        if (snapData.appointments && JSON.stringify(migratedAppts) !== JSON.stringify(snapData.appointments)) {
+          setDoc(docRef, { appointments: migratedAppts }, { merge: true }).catch(console.error);
+        }
         setData({
           ...defaultData,
           ...snapData,
+          appointments: migratedAppts,
           // Force-update trainingEvents from code so date fixes always apply
           trainingEvents: trainingEvents,
         });
@@ -272,6 +308,28 @@ export const useHealthData = (user) => {
     save({ exerciseLog: log });
   }, [data, save]);
 
+  // ========== FASTING LOG ==========
+  const saveFastingEntry = useCallback((dateStr, entry) => {
+    const log = { ...(data?.fastingLog || {}) };
+    log[dateStr] = { ...(log[dateStr] || {}), ...entry };
+    setData(d => ({ ...d, fastingLog: log }));
+    save({ fastingLog: log });
+  }, [data, save]);
+
+  const saveFastingSettings = useCallback((settings) => {
+    const updated = { ...(data?.fastingSettings || {}), ...settings };
+    setData(d => ({ ...d, fastingSettings: updated }));
+    save({ fastingSettings: updated });
+  }, [data, save]);
+
+  // ========== FIBER LOG ==========
+  const saveFiberEntry = useCallback((dateStr, entry) => {
+    const log = { ...(data?.fiberLog || {}) };
+    log[dateStr] = { ...(log[dateStr] || {}), ...entry };
+    setData(d => ({ ...d, fiberLog: log }));
+    save({ fiberLog: log });
+  }, [data, save]);
+
   // ========== EDIT DAILY CHECKLIST ITEMS ==========
   const updateDailyItems = useCallback((items) => {
     setData(d => ({ ...d, customDailyItems: items }));
@@ -325,5 +383,9 @@ export const useHealthData = (user) => {
     saveExerciseLog,
     // Shopping list
     addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems,
+    // Fasting
+    saveFastingEntry, saveFastingSettings,
+    // Fiber
+    saveFiberEntry,
   };
 };

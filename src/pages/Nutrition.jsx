@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { MEAL_TYPES, MEAL_PRESETS, RECIPE_SUGGESTIONS } from '../constants';
 
-export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, ...rest }) {
+export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, saveFastingEntry, saveFastingSettings, saveFiberEntry, ...rest }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showMealModal, setShowMealModal] = useState(false);
   const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '' });
@@ -11,9 +11,13 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const [shoppingCategory, setShoppingCategory] = useState('produce');
   const [expandedRecipe, setExpandedRecipe] = useState(null);
 
+  const [editingFastSettings, setEditingFastSettings] = useState(false);
+  const [fastSettingsForm, setFastSettingsForm] = useState(null);
+
   const meals = data?.mealLog?.[selectedDate] || [];
   const shoppingList = data?.shoppingList || [];
   const diet = healthPlan.mediterraneanDiet;
+  const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -79,6 +83,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
 
   const tabs = [
     { id: 'log', label: 'Food Log' },
+    { id: 'fasting', label: 'Fasting' },
     { id: 'presets', label: 'Quick Add' },
     { id: 'recipes', label: 'Recipes' },
     { id: 'shopping', label: 'Shopping' },
@@ -166,6 +171,186 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
             </p>
           </div>
         </>
+      )}
+
+      {/* ======== FASTING TAB ======== */}
+      {activeTab === 'fasting' && (
+        <div className="space-y-4">
+          {/* Today's fast status */}
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayFast = data?.fastingLog?.[todayStr] || {};
+            const now = new Date();
+            let fastHours = 0, fastMins = 0;
+            if (todayFast.fastStart) {
+              const end = todayFast.fastEnd ? new Date(todayFast.fastEnd) : now;
+              const start = new Date(todayFast.fastStart);
+              const diff = (end - start) / 1000 / 60;
+              fastHours = Math.floor(diff / 60);
+              fastMins = Math.floor(diff % 60);
+            }
+            const pct = Math.min(1, (fastHours + fastMins / 60) / fastingSettings.targetFastHours);
+            const metGoal = (fastHours + fastMins / 60) >= fastingSettings.targetFastHours;
+            const fastActive = todayFast.fastStart && !todayFast.fastEnd;
+
+            return (
+              <>
+                <div className={`p-4 rounded-xl ${
+                  fastActive ? 'bg-amber-900/30 border border-amber-700' :
+                  metGoal ? 'bg-green-900/30 border border-green-700' :
+                  'bg-slate-800 border border-slate-700'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="text-3xl">{fastActive ? '🔥' : metGoal ? '✅' : '🍽️'}</div>
+                    <div className="flex-1">
+                      <div className="text-lg font-semibold text-white">
+                        {fastActive ? 'Currently Fasting' : metGoal ? 'Fast Complete!' : todayFast.fastEnd ? 'Feeding Window' : 'No fast today'}
+                      </div>
+                      {todayFast.fastStart && (
+                        <div className="text-sm text-slate-400">
+                          {fastHours}h {fastMins}m {fastActive ? 'fasted so far' : 'total'} / {fastingSettings.targetFastHours}h target
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {todayFast.fastStart && (
+                    <div className="mb-3">
+                      <div className="w-full bg-slate-700 rounded-full h-3">
+                        <div className={`rounded-full h-3 transition-all ${metGoal ? 'bg-green-500' : 'bg-amber-500'}`}
+                          style={{ width: `${pct * 100}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Started: {new Date(todayFast.fastStart).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                        {todayFast.fastEnd && <span>Ended: {new Date(todayFast.fastEnd).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    {!todayFast.fastStart ? (
+                      <button onClick={() => saveFastingEntry(todayStr, { fastStart: new Date().toISOString() })}
+                        className="flex-1 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-500">
+                        Start Fast
+                      </button>
+                    ) : fastActive ? (
+                      <button onClick={() => saveFastingEntry(todayStr, { fastEnd: new Date().toISOString() })}
+                        className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500">
+                        End Fast
+                      </button>
+                    ) : (
+                      <button onClick={() => saveFastingEntry(todayStr, { fastStart: null, fastEnd: null })}
+                        className="flex-1 py-2 bg-slate-600 text-white rounded-lg text-sm font-medium hover:bg-slate-500">
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recent fasting log */}
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                  <h3 className="font-semibold text-white mb-3">Recent Fasts</h3>
+                  {(() => {
+                    const log = data?.fastingLog || {};
+                    const entries = Object.entries(log)
+                      .filter(([_, v]) => v.fastStart && v.fastEnd)
+                      .sort((a, b) => b[0].localeCompare(a[0]))
+                      .slice(0, 7);
+                    if (entries.length === 0) return <p className="text-sm text-slate-500">No completed fasts yet.</p>;
+                    return (
+                      <div className="space-y-2">
+                        {entries.map(([date, entry]) => {
+                          const dur = (new Date(entry.fastEnd) - new Date(entry.fastStart)) / 1000 / 60 / 60;
+                          const hit = dur >= fastingSettings.targetFastHours;
+                          return (
+                            <div key={date} className="flex items-center gap-3 p-2 bg-slate-700/50 rounded-lg">
+                              <span className="text-sm">{hit ? '✅' : '⚠️'}</span>
+                              <span className="text-sm text-slate-300 flex-1">
+                                {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                              <span className={`text-sm font-medium ${hit ? 'text-green-400' : 'text-amber-400'}`}>
+                                {dur.toFixed(1)}h
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Fasting settings */}
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-white">Settings</h3>
+              <button onClick={() => { setFastSettingsForm({...fastingSettings}); setEditingFastSettings(true); }}
+                className="text-xs text-blue-400 hover:underline">Edit</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-slate-700/50 rounded-lg text-center">
+                <div className="text-lg font-bold text-amber-400">{fastingSettings.targetFastHours}h</div>
+                <div className="text-xs text-slate-400">Fast duration</div>
+              </div>
+              <div className="p-3 bg-slate-700/50 rounded-lg text-center">
+                <div className="text-lg font-bold text-green-400">{fastingSettings.feedingWindowHours}h</div>
+                <div className="text-xs text-slate-400">Feeding window</div>
+              </div>
+              <div className="p-3 bg-slate-700/50 rounded-lg text-center">
+                <div className="text-sm font-medium text-slate-300">{fastingSettings.typicalFeedingStart}</div>
+                <div className="text-xs text-slate-400">First meal</div>
+              </div>
+              <div className="p-3 bg-slate-700/50 rounded-lg text-center">
+                <div className="text-sm font-medium text-slate-300">{fastingSettings.typicalFastStart}</div>
+                <div className="text-xs text-slate-400">Last meal</div>
+              </div>
+            </div>
+          </div>
+
+          {/* IF info */}
+          <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-800/50 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-amber-300 mb-2">About {fastingSettings.targetFastHours}:{fastingSettings.feedingWindowHours} Intermittent Fasting</h3>
+            <p className="text-xs text-amber-200/80">
+              Fast for {fastingSettings.targetFastHours} hours, eat within a {fastingSettings.feedingWindowHours}-hour window. Benefits include improved insulin sensitivity, reduced inflammation, and better body composition. Pair with your Mediterranean diet for optimal results.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Fasting Settings Modal */}
+      {editingFastSettings && fastSettingsForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingFastSettings(false)}>
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">Fasting Settings</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-400">Fast Duration (hours)</label>
+                <input type="number" value={fastSettingsForm.targetFastHours}
+                  onChange={e => setFastSettingsForm(f => ({ ...f, targetFastHours: Number(e.target.value), feedingWindowHours: 24 - Number(e.target.value) }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Typical First Meal (feeding start)</label>
+                <input type="time" value={fastSettingsForm.typicalFeedingStart}
+                  onChange={e => setFastSettingsForm(f => ({ ...f, typicalFeedingStart: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Typical Last Meal (fast start)</label>
+                <input type="time" value={fastSettingsForm.typicalFastStart}
+                  onChange={e => setFastSettingsForm(f => ({ ...f, typicalFastStart: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white mt-1" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingFastSettings(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
+              <button onClick={() => { saveFastingSettings(fastSettingsForm); setEditingFastSettings(false); }}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ======== QUICK ADD / PRESETS TAB ======== */}
