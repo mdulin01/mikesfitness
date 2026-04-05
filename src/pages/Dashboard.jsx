@@ -82,8 +82,7 @@ export default function Dashboard({
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
   const todayFasting = data?.fastingLog?.[todayStr] || {};
 
-  // Fiber data
-  const todayFiber = data?.fiberLog?.[todayStr] || {};
+  // (fiber tracking moved into medSchedule — Benefiber + Psyllium)
 
   // Exercise log
   const [showExerciseLog, setShowExerciseLog] = useState(false);
@@ -92,9 +91,7 @@ export default function Dashboard({
   // Fasting meal-time inputs
   const [fastingEditMode, setFastingEditMode] = useState(false);
 
-  // Collapsible sections
-  const [medsExpanded, setMedsExpanded] = useState(false);
-  const [supplementsExpanded, setSupplementsExpanded] = useState(false);
+  // (medsExpanded/supplementsExpanded removed — now using time-based groups)
 
   // Edit checklist
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -132,17 +129,15 @@ export default function Dashboard({
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const daysUntil = (d) => Math.ceil((new Date(d) - new Date(todayStr)) / 86400000);
 
-  // Meds & Supplements computed
-  const allMedsTaken = healthPlan.medications.every(m => medChecks[m.name]);
-  const medsTakenCount = healthPlan.medications.filter(m => medChecks[m.name]).length;
-  const allSupsTaken = healthPlan.supplements.every(s => medChecks[s.name]);
-  const supsTakenCount = healthPlan.supplements.filter(s => medChecks[s.name]).length;
-  const fiberMorning = todayFiber.morning || false;
-  const fiberEvening = todayFiber.evening || false;
-  const fiberCount = (fiberMorning ? 1 : 0) + (fiberEvening ? 1 : 0);
-  const totalMedItems = healthPlan.medications.length + healthPlan.supplements.length + 2; // +2 for fiber AM/PM
-  const totalMedChecked = medsTakenCount + supsTakenCount + fiberCount;
+  // Meds & Supplements computed — using medSchedule grouped by time
+  const allScheduleItems = (healthPlan.medSchedule || []).flatMap(g => g.items.filter(i => !i.optional));
+  const scheduleCheckedCount = allScheduleItems.filter(i => medChecks[i.name]).length;
+  const totalMedItems = allScheduleItems.length;
+  const totalMedChecked = scheduleCheckedCount;
   const allDone = totalMedChecked === totalMedItems;
+  // backward compat for health score
+  const medsTakenCount = healthPlan.medications.filter(m => medChecks[m.name]).length;
+  const supsTakenCount = healthPlan.supplements.filter(s => medChecks[s.name]).length;
 
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
   const dailyTotal = dailyItems.length;
@@ -161,9 +156,9 @@ export default function Dashboard({
     const workoutDone = completions[todayDow] || dailyChecks['workout'] || false;
     const exercisePts = workoutDone ? 20 : (dailyChecks['move'] ? 10 : 0);
 
-    // Nutrition (20 pts): meals logged + fiber
+    // Nutrition (20 pts): meals logged + fiber (Benefiber AM + Psyllium PM)
     const mealPts = Math.min(10, todayMeals.length * 5);
-    const fiberPts = (fiberMorning ? 5 : 0) + (fiberEvening ? 5 : 0);
+    const fiberPts = (medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0);
     const nutritionPts = mealPts + fiberPts;
 
     // Sleep (20 pts): sleep habit checked
@@ -196,7 +191,7 @@ export default function Dashboard({
       meds: medPts,
       trend: trendPts,
     };
-  }, [completions, todayDow, dailyChecks, todayMeals, fiberMorning, fiberEvening, medsTakenCount, supsTakenCount, data?.weightEntries]);
+  }, [completions, todayDow, dailyChecks, todayMeals, medChecks, medsTakenCount, supsTakenCount, data?.weightEntries]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-5 pb-24 md:pb-6">
@@ -456,138 +451,66 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Meds & Supplements */}
+      {/* Meds & Supplements — by time of day */}
       <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>
         <div className="space-y-2">
-          {/* Medications group */}
-          <div>
-            <button onClick={() => setMedsExpanded(e => !e)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                allMedsTaken ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-              }`}>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                allMedsTaken ? 'border-green-500 bg-green-500' : medsTakenCount > 0 ? 'border-yellow-500 bg-yellow-500/30' : 'border-slate-500'
-              }`}>
-                {allMedsTaken ? <span className="text-white text-xs">✓</span> : medsTakenCount > 0 ? <span className="text-yellow-300 text-xs">{medsTakenCount}</span> : null}
-              </div>
-              <span className={`text-sm flex-1 text-left ${allMedsTaken ? 'text-green-400' : 'text-slate-300'}`}>
-                Medications ({medsTakenCount}/{healthPlan.medications.length})
-              </span>
-              <span className="text-slate-500 text-xs">{medsExpanded ? '▲' : '▼'}</span>
-            </button>
-            {medsExpanded && (
-              <div className="ml-4 mt-1 space-y-1">
-                {healthPlan.medications.map(med => (
-                  <button key={med.name} onClick={() => toggleMedCheck(todayStr, med.name)}
-                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-sm ${
-                      medChecks[med.name] ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
-                    }`}>
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                      medChecks[med.name] ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                    }`}>{medChecks[med.name] && <span className="text-white text-[10px]">✓</span>}</div>
-                    <span className={`flex-1 text-left ${medChecks[med.name] ? 'line-through' : ''}`}>{med.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
-                      med.timing === 'morning' ? 'bg-amber-900/50 text-amber-400' :
-                      med.timing === 'evening' ? 'bg-indigo-900/50 text-indigo-400' :
-                      'bg-slate-600 text-slate-400'
-                    }`}>{med.timing === 'morning' ? '☀️ AM' : med.timing === 'evening' ? '🌙 PM' : med.timing === 'weekly' ? '📅 Wk' : '⏰'}</span>
-                    {med.awayFromFiber && <span className="text-[10px] px-1 py-0.5 rounded-full bg-red-900/50 text-red-400">⚠️ no fiber</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Fiber — Morning & Evening */}
-          <div className={`p-3 rounded-lg transition-all ${
-            fiberCount === 2 ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-slate-300">🌾 Fiber ({fiberCount}/2)</span>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => saveFiberEntry(todayStr, { morning: !fiberMorning })}
-                className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-xs transition-all ${
-                  fiberMorning ? 'bg-green-900/40 border border-green-700 text-green-400' : 'bg-slate-600/50 border border-slate-500 text-slate-400 hover:bg-slate-600'
+          {(healthPlan.medSchedule || []).map(group => {
+            const required = group.items.filter(i => !i.optional);
+            const checkedInGroup = required.filter(i => medChecks[i.name]).length;
+            const groupDone = checkedInGroup === required.length;
+            return (
+              <div key={group.time}>
+                <div className={`p-3 rounded-lg transition-all ${
+                  groupDone ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
                 }`}>
-                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                  fiberMorning ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                }`}>{fiberMorning && <span className="text-white text-[10px]">✓</span>}</div>
-                AM
-              </button>
-              <button onClick={() => saveFiberEntry(todayStr, { evening: !fiberEvening })}
-                className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-xs transition-all ${
-                  fiberEvening ? 'bg-green-900/40 border border-green-700 text-green-400' : 'bg-slate-600/50 border border-slate-500 text-slate-400 hover:bg-slate-600'
-                }`}>
-                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                  fiberEvening ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                }`}>{fiberEvening && <span className="text-white text-[10px]">✓</span>}</div>
-                PM
-              </button>
-            </div>
-            {/* Fiber-rich foods eaten today */}
-            <div className="mt-2 flex flex-wrap gap-1">
-              {FIBER_FOODS.map(f => {
-                const eaten = (todayFiber.foods || []).includes(f.id);
-                return (
-                  <button key={f.id} onClick={() => {
-                    const foods = todayFiber.foods || [];
-                    saveFiberEntry(todayStr, { foods: eaten ? foods.filter(x => x !== f.id) : [...foods, f.id] });
-                  }}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full transition-all ${
-                      eaten ? 'bg-green-900/40 text-green-400 border border-green-700' : 'bg-slate-600/50 text-slate-500 hover:text-slate-300'
-                    }`}>
-                    {f.emoji} {f.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Supplements group */}
-          <div>
-            <button onClick={() => setSupplementsExpanded(e => !e)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                allSupsTaken ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-              }`}>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                allSupsTaken ? 'border-green-500 bg-green-500' : supsTakenCount > 0 ? 'border-yellow-500 bg-yellow-500/30' : 'border-slate-500'
-              }`}>
-                {allSupsTaken ? <span className="text-white text-xs">✓</span> : supsTakenCount > 0 ? <span className="text-yellow-300 text-xs">{supsTakenCount}</span> : null}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">{group.emoji}</span>
+                    <span className={`text-sm font-medium ${groupDone ? 'text-green-400' : 'text-slate-300'}`}>
+                      {group.label}
+                    </span>
+                    <span className="text-xs text-slate-500 ml-auto">{checkedInGroup}/{required.length}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {group.items.map(item => {
+                      const done = medChecks[item.name];
+                      return (
+                        <button key={item.name} onClick={() => !item.optional && toggleMedCheck(todayStr, item.name)}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all text-sm ${
+                            item.optional ? 'opacity-60 cursor-default' :
+                            done ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
+                          }`}>
+                          {!item.optional && (
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                              done ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                            }`}>{done && <span className="text-white text-[10px]">✓</span>}</div>
+                          )}
+                          {item.optional && <span className="w-4 text-center text-slate-600">–</span>}
+                          <span className={`flex-1 text-left ${done ? 'line-through' : ''}`}>
+                            {item.name}
+                            {item.rx && <span className="text-[10px] ml-1 px-1 py-0.5 rounded bg-blue-900/50 text-blue-400">Rx</span>}
+                          </span>
+                          <span className="text-[10px] text-slate-500">{item.notes}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              <span className={`text-sm flex-1 text-left ${allSupsTaken ? 'text-green-400' : 'text-slate-300'}`}>
-                Supplements ({supsTakenCount}/{healthPlan.supplements.length})
-              </span>
-              <span className="text-slate-500 text-xs">{supplementsExpanded ? '▲' : '▼'}</span>
-            </button>
-            {supplementsExpanded && (
-              <div className="ml-4 mt-1 space-y-1">
-                {healthPlan.supplements.map(sup => (
-                  <button key={sup.name} onClick={() => toggleMedCheck(todayStr, sup.name)}
-                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-sm ${
-                      medChecks[sup.name] ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
-                    }`}>
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                      medChecks[sup.name] ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                    }`}>{medChecks[sup.name] && <span className="text-white text-[10px]">✓</span>}</div>
-                    <span className={`flex-1 text-left ${medChecks[sup.name] ? 'line-through' : ''}`}>{sup.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
-                      sup.timing === 'morning' ? 'bg-amber-900/50 text-amber-400' :
-                      sup.timing === 'evening' ? 'bg-indigo-900/50 text-indigo-400' :
-                      'bg-slate-600 text-slate-400'
-                    }`}>{sup.timing === 'morning' ? '☀️ AM' : sup.timing === 'evening' ? '🌙 PM' : '⏰'}</span>
-                    {sup.withFood && <span className="text-[10px] px-1 py-0.5 rounded-full bg-amber-900/50 text-amber-400">🍽️</span>}
-                    {sup.awayFromFiber && <span className="text-[10px] px-1 py-0.5 rounded-full bg-red-900/50 text-red-400">⚠️ no fiber</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+            );
+          })}
         </div>
 
+        {/* Overall progress */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex-1 bg-slate-700 rounded-full h-2">
+            <div className={`rounded-full h-2 transition-all ${allDone ? 'bg-green-500' : 'bg-amber-500'}`}
+              style={{ width: `${totalMedItems > 0 ? (totalMedChecked / totalMedItems) * 100 : 0}%` }} />
+          </div>
+          <span className="text-xs text-slate-400">{totalMedChecked}/{totalMedItems}</span>
+        </div>
         {allDone && (
-          <div className="mt-3 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
-            <span className="text-green-400 text-sm font-medium">✅ All meds & supplements taken!</span>
+          <div className="mt-2 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
+            <span className="text-green-400 text-sm font-medium">All meds & supplements taken!</span>
           </div>
         )}
       </Section>

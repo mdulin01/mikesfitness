@@ -14,22 +14,70 @@ export const healthPlan = {
     { risk: "Depression / isolation", why: "Under-recognized risk" },
   ],
 
-  // Prescription medications only
-  medications: [
-    { name: "Rosuvastatin 5 mg", why: "LDL reduction, plaque prevention", category: "cardiovascular", timing: "evening", withFood: false, awayFromFiber: true },
-    { name: "Ezetimibe 10 mg", why: "Additional LDL lowering", category: "cardiovascular", timing: "morning", withFood: false, awayFromFiber: false },
-    { name: "GLP-1 (semaglutide or tirzepatide)", why: "Weight, CV risk, inflammation", category: "metabolic", timing: "weekly", withFood: false, awayFromFiber: false },
-    { name: "Enclomiphene", why: "Maintain testosterone, muscle mass", category: "hormonal", timing: "morning", withFood: false, awayFromFiber: false },
+  // Daily med/supplement schedule grouped by time of day
+  medSchedule: [
+    {
+      time: 'morning', label: 'Morning (empty stomach)', emoji: '☀️',
+      items: [
+        { name: 'Enclomiphene', notes: 'Hormone', rx: true },
+        { name: 'Probiotic', notes: 'Gut' },
+        { name: 'Methyl B-complex', notes: 'Homocysteine' },
+        { name: 'Collagen', notes: 'Joints' },
+        { name: 'Creatine', notes: 'Muscle/brain' },
+        { name: 'Benefiber', notes: 'Cholesterol/gut' },
+        { name: 'Coffee', notes: 'Happiness', optional: true },
+      ],
+    },
+    {
+      time: 'lunch', label: 'Lunch (with food)', emoji: '🍽️',
+      items: [
+        { name: 'Multivitamin', notes: 'General' },
+        { name: 'Vitamin D', notes: 'Bone' },
+        { name: 'Fish oil', notes: 'Heart' },
+        { name: 'CoQ10', notes: 'Statin support' },
+        { name: 'Seed Supplement', notes: 'Vegetables' },
+      ],
+    },
+    {
+      time: 'dinner', label: 'Dinner', emoji: '🌆',
+      items: [
+        { name: 'Fish oil (dinner)', notes: 'Heart' },
+        { name: 'Psyllium', notes: 'Fiber goal' },
+      ],
+    },
+    {
+      time: 'bedtime', label: 'Bedtime', emoji: '🌙',
+      items: [
+        { name: 'Magnesium glycinate', notes: 'Sleep/heart' },
+        { name: 'Crestor', notes: 'Cholesterol', rx: true },
+        { name: 'Ezetimibe', notes: 'Cholesterol', rx: true },
+        { name: 'Cialis', notes: 'Vascular', rx: true },
+      ],
+    },
   ],
 
-  // Supplements (separate from meds)
+  // Flat arrays kept for backward compat (Medical page, health score, etc.)
+  medications: [
+    { name: "Crestor", why: "LDL reduction, plaque prevention", category: "cardiovascular", timing: "bedtime", withFood: false, awayFromFiber: false },
+    { name: "Ezetimibe", why: "Additional LDL lowering", category: "cardiovascular", timing: "bedtime", withFood: false, awayFromFiber: false },
+    { name: "Enclomiphene", why: "Maintain testosterone, muscle mass", category: "hormonal", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Cialis", why: "Vascular health", category: "cardiovascular", timing: "bedtime", withFood: false, awayFromFiber: false },
+  ],
+
   supplements: [
-    { name: "Vitamin D", why: "Bone, immune", timing: "morning", withFood: true, awayFromFiber: false },
-    { name: "Fish oil (EPA/DHA)", why: "Triglycerides, anti-inflammatory", timing: "morning", withFood: true, awayFromFiber: false },
-    { name: "Creatine 5 g/day", why: "Muscle, brain", timing: "anytime", withFood: false, awayFromFiber: false },
-    { name: "Magnesium", why: "Sleep, muscle, bone", timing: "evening", withFood: false, awayFromFiber: false },
-    { name: "Probiotic", why: "Gut health, Crohn's support", timing: "morning", withFood: false, awayFromFiber: true },
-    { name: "Novo", why: "GLP-1 support", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Probiotic", why: "Gut health, Crohn's support", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Methyl B-complex", why: "Homocysteine reduction", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Collagen", why: "Joint support", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Creatine", why: "Muscle, brain", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Benefiber", why: "Cholesterol, gut health", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "Multivitamin", why: "General nutrition", timing: "lunch", withFood: true, awayFromFiber: false },
+    { name: "Vitamin D", why: "Bone, immune", timing: "lunch", withFood: true, awayFromFiber: false },
+    { name: "Fish oil", why: "Heart, triglycerides", timing: "lunch", withFood: true, awayFromFiber: false },
+    { name: "CoQ10", why: "Statin support", timing: "lunch", withFood: true, awayFromFiber: false },
+    { name: "Seed Supplement", why: "Vegetable nutrients", timing: "lunch", withFood: true, awayFromFiber: false },
+    { name: "Fish oil (dinner)", why: "Heart, second dose", timing: "dinner", withFood: true, awayFromFiber: false },
+    { name: "Psyllium", why: "Fiber goal", timing: "dinner", withFood: true, awayFromFiber: false },
+    { name: "Magnesium glycinate", why: "Sleep, heart", timing: "bedtime", withFood: false, awayFromFiber: false },
   ],
 
   labSchedule: {
