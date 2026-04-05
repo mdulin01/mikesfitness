@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { exercisePlan } from '../data/exercisePlan';
+import { healthPlan } from '../data/healthPlan';
 import { ALL_EVENT_TYPES, FITNESS_EVENT_TYPES } from '../constants';
 
 const ACTIVITY_TYPES = [
@@ -71,18 +72,34 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   // Expanded day for details
   const [expandedDay, setExpandedDay] = useState(null);
   const [activityForm, setActivityForm] = useState({ type: 'weights', distance: '', duration: '', notes: '' });
+  const [effortRatingDayKey, setEffortRatingDayKey] = useState(null);
+  const [recentActivityId, setRecentActivityId] = useState(null);
 
   const addActivity = (dayKey) => {
     if (!activityForm.type) return;
     const existing = currentWorkoutDetails[dayKey] || [];
+    const activityId = Date.now();
     const updated = [...existing, {
       ...activityForm,
-      id: Date.now(),
+      id: activityId,
       distance: activityForm.distance || null,
       duration: activityForm.duration || null,
+      effort: null, // Will be set via effort rating
     }];
     saveWorkoutDetail(currentWeekKey, dayKey, updated);
+    setRecentActivityId(activityId);
+    setEffortRatingDayKey(dayKey);
     setActivityForm({ type: 'weights', distance: '', duration: '', notes: '' });
+  };
+
+  const setActivityEffort = (dayKey, activityId, effort) => {
+    const existing = currentWorkoutDetails[dayKey] || [];
+    const updated = existing.map(a =>
+      a.id === activityId ? { ...a, effort } : a
+    );
+    saveWorkoutDetail(currentWeekKey, dayKey, updated);
+    setEffortRatingDayKey(null);
+    setRecentActivityId(null);
   };
 
   const removeActivity = (dayKey, actId) => {
@@ -220,6 +237,48 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   const liftDateIsToday = liftDate === todayStr;
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
+  // Compute weekly totals
+  const weeklyTotals = useMemo(() => {
+    let cardioMinutes = 0;
+    let zone2Minutes = 0;
+    let intervalsCount = 0;
+    let strengthDays = 0;
+    let swimYards = 0;
+
+    exercisePlan.weeklySchedule.forEach(day => {
+      const dayKey = day.day.toLowerCase();
+      const activities = currentWorkoutDetails[dayKey] || [];
+
+      // Count strength days
+      if (day.type === 'strength' && activities.length > 0) {
+        strengthDays += 1;
+      }
+
+      activities.forEach(a => {
+        // Cardio minutes: run, walk, bike, swim
+        if (['run', 'walk', 'bike', 'swim'].includes(a.type) && a.duration) {
+          cardioMinutes += parseInt(a.duration) || 0;
+        }
+        // Intervals
+        if (a.type === 'hiit' && a.duration) {
+          intervalsCount += 1;
+        }
+        // Swim yards
+        if (a.type === 'swim' && a.distance) {
+          swimYards += parseInt(a.distance) || 0;
+        }
+      });
+    });
+
+    return {
+      cardioMinutes,
+      zone2Minutes,
+      intervalsCount,
+      strengthDays,
+      swimYards,
+    };
+  }, [currentWorkoutDetails]);
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 pb-24 md:pb-6">
       <h1 className="text-2xl font-bold text-white">Training</h1>
@@ -257,6 +316,43 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
             <button onClick={() => setWeekOffset(o => o + 1)} className="p-2 text-slate-400 hover:text-slate-200">Next →</button>
           </div>
 
+          {/* Weekly Totals Summary */}
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3">Weekly Totals</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Cardio Minutes</div>
+                <div className="text-lg font-bold text-white">{weeklyTotals.cardioMinutes}</div>
+                <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.cardioMinutes}</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Zone 2</div>
+                <div className="text-lg font-bold text-white">—</div>
+                <div className="text-xs text-slate-500">Manual track</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Intervals</div>
+                <div className="text-lg font-bold text-white">{weeklyTotals.intervalsCount}</div>
+                <div className="text-xs text-slate-500">Sessions</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Strength Sessions</div>
+                <div className="text-lg font-bold text-white">{weeklyTotals.strengthDays}</div>
+                <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.strengthDays}</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Steps</div>
+                <div className="text-lg font-bold text-white">—</div>
+                <div className="text-xs text-slate-500">Not tracked</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Swim Yards</div>
+                <div className="text-lg font-bold text-white">{weeklyTotals.swimYards}</div>
+                <div className="text-xs text-slate-500">Distance</div>
+              </div>
+            </div>
+          </div>
+
           {/* Weekly schedule with expandable details */}
           <div className="space-y-2">
             {exercisePlan.weeklySchedule.map(day => {
@@ -286,7 +382,8 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                         <div className="flex gap-1 mt-1 flex-wrap">
                           {dayActivities.map(a => {
                             const at = ACTIVITY_TYPES.find(t => t.id === a.type);
-                            return <span key={a.id} className="text-xs bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">{at?.emoji} {a.duration ? `${a.duration}min` : ''}{a.distance ? ` ${a.distance}mi` : ''}</span>;
+                            const effortEmoji = a.effort === 'easy' ? '😊' : a.effort === 'moderate' ? '💪' : a.effort === 'hard' ? '🔥' : '';
+                            return <span key={a.id} className="text-xs bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">{at?.emoji} {a.duration ? `${a.duration}min` : ''}{a.distance ? ` ${a.distance}mi` : ''} {effortEmoji}</span>;
                           })}
                         </div>
                       )}
@@ -304,12 +401,14 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                         <div className="space-y-1">
                           {dayActivities.map(a => {
                             const at = ACTIVITY_TYPES.find(t => t.id === a.type);
+                            const effortEmoji = a.effort === 'easy' ? '😊' : a.effort === 'moderate' ? '💪' : a.effort === 'hard' ? '🔥' : '';
                             return (
                               <div key={a.id} className="flex items-center gap-2 p-2 bg-slate-700/50 rounded-lg text-sm">
                                 <span>{at?.emoji}</span>
                                 <span className="font-medium text-white">{at?.label}</span>
                                 {a.distance && <span className="text-slate-400">{a.distance} mi</span>}
                                 {a.duration && <span className="text-slate-400">{a.duration} min</span>}
+                                {effortEmoji && <span className="text-lg">{effortEmoji}</span>}
                                 {a.notes && <span className="text-slate-500 truncate flex-1">{a.notes}</span>}
                                 <button onClick={() => removeActivity(key, a.id)} className="text-slate-600 hover:text-red-400 text-xs ml-auto">×</button>
                               </div>
@@ -341,6 +440,27 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                         <button onClick={() => addActivity(key)}
                           className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-500">+ Add Activity</button>
                       </div>
+
+                      {/* Effort rating for recently added activity */}
+                      {effortRatingDayKey === key && recentActivityId && (
+                        <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3 space-y-2">
+                          <div className="text-xs font-medium text-blue-300">How much effort?</div>
+                          <div className="flex gap-2">
+                            <button onClick={() => setActivityEffort(key, recentActivityId, 'easy')}
+                              className="flex-1 py-2 bg-green-600/40 border border-green-600 text-green-300 rounded-lg text-xs font-medium hover:bg-green-600/60">
+                              Easy 😊
+                            </button>
+                            <button onClick={() => setActivityEffort(key, recentActivityId, 'moderate')}
+                              className="flex-1 py-2 bg-yellow-600/40 border border-yellow-600 text-yellow-300 rounded-lg text-xs font-medium hover:bg-yellow-600/60">
+                              Moderate 💪
+                            </button>
+                            <button onClick={() => setActivityEffort(key, recentActivityId, 'hard')}
+                              className="flex-1 py-2 bg-red-600/40 border border-red-600 text-red-300 rounded-lg text-xs font-medium hover:bg-red-600/60">
+                              Hard 🔥
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Quick link to lift log on strength days */}
                       {day.type === 'strength' && (
