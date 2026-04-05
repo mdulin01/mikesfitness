@@ -1,21 +1,113 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { LAB_CATEGORIES } from '../constants';
+
+// Simple SVG line chart component
+function TrendChart({ entries, dataKey, goalValue, color, label, unit, height = 180 }) {
+  if (entries.length < 2) return null;
+
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const values = sorted.map(e => e[dataKey]).filter(v => v != null);
+  if (values.length < 2) return null;
+
+  const dates = sorted.filter(e => e[dataKey] != null);
+  const padding = { top: 20, right: 15, bottom: 30, left: 45 };
+  const width = 400;
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  const minVal = Math.min(...values, goalValue) - 2;
+  const maxVal = Math.max(...values, goalValue) + 2;
+  const range = maxVal - minVal || 1;
+
+  const scaleX = (i) => padding.left + (i / (dates.length - 1)) * chartW;
+  const scaleY = (v) => padding.top + chartH - ((v - minVal) / range) * chartH;
+
+  const points = dates.map((e, i) => `${scaleX(i)},${scaleY(e[dataKey])}`).join(' ');
+  const goalY = scaleY(goalValue);
+
+  // Show ~5 date labels
+  const labelInterval = Math.max(1, Math.floor(dates.length / 5));
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+      <h3 className="text-sm font-semibold text-slate-300 mb-2">{label} Trend</h3>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(pct => {
+          const y = padding.top + chartH * (1 - pct);
+          const val = (minVal + range * pct).toFixed(1);
+          return (
+            <g key={pct}>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#334155" strokeWidth="0.5" />
+              <text x={padding.left - 5} y={y + 3} textAnchor="end" fill="#64748b" fontSize="9">{val}</text>
+            </g>
+          );
+        })}
+
+        {/* Goal line */}
+        <line x1={padding.left} y1={goalY} x2={width - padding.right} y2={goalY}
+          stroke="#22c55e" strokeWidth="1" strokeDasharray="4 3" />
+        <text x={width - padding.right + 2} y={goalY + 3} fill="#22c55e" fontSize="8">Goal</text>
+
+        {/* Data line */}
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Data points */}
+        {dates.map((e, i) => (
+          <circle key={i} cx={scaleX(i)} cy={scaleY(e[dataKey])} r="3" fill={color} stroke="#1e293b" strokeWidth="1.5" />
+        ))}
+
+        {/* Date labels */}
+        {dates.map((e, i) => {
+          if (i % labelInterval !== 0 && i !== dates.length - 1) return null;
+          const d = new Date(e.date + 'T12:00:00');
+          const lbl = `${d.getMonth() + 1}/${d.getDate()}`;
+          return (
+            <text key={i} x={scaleX(i)} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="8">{lbl}</text>
+          );
+        })}
+      </svg>
+      <div className="flex justify-between text-xs text-slate-500 mt-1">
+        <span>Latest: <span className="text-white font-medium">{values[values.length - 1]}{unit}</span></span>
+        <span>Goal: <span className="text-green-400 font-medium">{goalValue}{unit}</span></span>
+      </div>
+    </div>
+  );
+}
 
 export default function Health({ data, addWeight, addLabResult, ...rest }) {
   const [view, setView] = useState('overview'); // 'overview' | 'weight' | 'labs' | 'meds'
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);
-  const [weightForm, setWeightForm] = useState({ date: new Date().toISOString().split('T')[0], weight: '', waist: '', notes: '' });
+  const [weightForm, setWeightForm] = useState({ date: new Date().toISOString().split('T')[0], weight: '', bodyFat: '', waist: '', notes: '' });
   const [labForm, setLabForm] = useState({ date: new Date().toISOString().split('T')[0], marker: '', value: '', unit: '', notes: '' });
 
-  const latestWeight = (data?.weightEntries || [])[0];
+  const weightEntries = data?.weightEntries || [];
+  const latestWeight = weightEntries[0];
+
+  // Compute change from first entry
+  const weightChange = useMemo(() => {
+    if (weightEntries.length < 2) return null;
+    const sorted = [...weightEntries].sort((a, b) => a.date.localeCompare(b.date));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    return {
+      weight: (last.weight - first.weight).toFixed(1),
+      bodyFat: first.bodyFat != null && last.bodyFat != null ? (last.bodyFat - first.bodyFat).toFixed(1) : null,
+    };
+  }, [weightEntries]);
 
   const submitWeight = (e) => {
     e.preventDefault();
     if (!weightForm.weight) return;
-    addWeight({ ...weightForm, weight: parseFloat(weightForm.weight), waist: weightForm.waist ? parseFloat(weightForm.waist) : null });
-    setWeightForm({ date: new Date().toISOString().split('T')[0], weight: '', waist: '', notes: '' });
+    addWeight({
+      ...weightForm,
+      weight: parseFloat(weightForm.weight),
+      bodyFat: weightForm.bodyFat ? parseFloat(weightForm.bodyFat) : null,
+      waist: weightForm.waist ? parseFloat(weightForm.waist) : null,
+    });
+    setWeightForm({ date: new Date().toISOString().split('T')[0], weight: '', bodyFat: '', waist: '', notes: '' });
     setShowWeightModal(false);
   };
 
@@ -28,6 +120,8 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
   };
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const goals = healthPlan.weightGoals;
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 pb-24 md:pb-6">
@@ -55,35 +149,54 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
 
       {view === 'overview' && (
         <div className="space-y-4">
-          {/* Weight summary */}
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-white">Weight</h3>
-              <button onClick={() => { setView('weight'); setShowWeightModal(true); }} className="text-sm text-blue-400">+ Log</button>
-            </div>
-            <div className="flex items-end gap-4">
-              <div>
-                <div className="text-3xl font-bold text-white">{latestWeight?.weight || '—'}</div>
-                <div className="text-xs text-slate-400">lbs {latestWeight && `(${formatDate(latestWeight.date)})`}</div>
-              </div>
-              <div className="text-sm text-slate-400">
-                Target: <span className="font-medium text-green-400">{healthPlan.weightGoals.target} lbs</span>
-              </div>
-            </div>
-            {latestWeight && (
-              <div className="mt-3">
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                  <span>{healthPlan.weightGoals.target}</span>
-                  <span>{latestWeight.weight}</span>
+          {/* Weight + Body Fat summary side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Weight card */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Weight</div>
+              <div className="text-2xl font-bold text-white">{latestWeight?.weight || '—'}<span className="text-sm text-slate-400 ml-1">lbs</span></div>
+              <div className="text-xs text-slate-500">Goal: <span className="text-green-400">{goals.target} lbs</span></div>
+              {latestWeight && (
+                <div className="mt-2">
+                  <div className="w-full bg-slate-700 rounded-full h-1.5">
+                    <div className="bg-blue-500 rounded-full h-1.5 transition-all" style={{
+                      width: `${Math.max(0, Math.min(100, ((latestWeight.weight - goals.target) / (goals.current - goals.target)) * 100))}%`
+                    }} />
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {(latestWeight.weight - goals.target).toFixed(1)} lbs to go
+                  </div>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div className="bg-blue-500 rounded-full h-2 transition-all" style={{
-                    width: `${Math.max(0, Math.min(100, ((latestWeight.weight - healthPlan.weightGoals.target) / (200 - healthPlan.weightGoals.target)) * 100))}%`
-                  }} />
-                </div>
+              )}
+            </div>
+
+            {/* Body Fat card */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Body Fat</div>
+              <div className="text-2xl font-bold text-white">
+                {latestWeight?.bodyFat != null ? latestWeight.bodyFat : '—'}<span className="text-sm text-slate-400 ml-1">%</span>
               </div>
-            )}
+              <div className="text-xs text-slate-500">Goal: <span className="text-green-400">{goals.bodyFatTarget}%</span></div>
+              {latestWeight?.bodyFat != null && (
+                <div className="mt-2">
+                  <div className="w-full bg-slate-700 rounded-full h-1.5">
+                    <div className="bg-purple-500 rounded-full h-1.5 transition-all" style={{
+                      width: `${Math.max(0, Math.min(100, ((latestWeight.bodyFat - goals.bodyFatTarget) / (goals.bodyFatCurrent - goals.bodyFatTarget)) * 100))}%`
+                    }} />
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {(latestWeight.bodyFat - goals.bodyFatTarget).toFixed(1)}% to go
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Log button */}
+          <button onClick={() => { setView('weight'); setShowWeightModal(true); }}
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium text-sm hover:bg-blue-500 transition-colors">
+            + Log Weight & Body Fat
+          </button>
 
           {/* Recent labs */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
@@ -153,7 +266,62 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
               + Log Weight
             </button>
           </div>
-          {(data?.weightEntries || []).length === 0 ? (
+
+          {/* Goal summary cards */}
+          {latestWeight && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
+                <div className="text-xs text-slate-400">Current</div>
+                <div className="text-xl font-bold text-white">{latestWeight.weight}<span className="text-xs text-slate-400"> lbs</span></div>
+                {latestWeight.bodyFat != null && (
+                  <div className="text-sm text-purple-400">{latestWeight.bodyFat}% BF</div>
+                )}
+              </div>
+              <div className="bg-slate-800 rounded-xl border border-green-800/50 p-4 text-center">
+                <div className="text-xs text-slate-400">Goal</div>
+                <div className="text-xl font-bold text-green-400">{goals.target}<span className="text-xs text-slate-400"> lbs</span></div>
+                <div className="text-sm text-green-400">{goals.bodyFatTarget}% BF</div>
+              </div>
+            </div>
+          )}
+
+          {/* Change indicator */}
+          {weightChange && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 flex items-center justify-center gap-4 text-sm">
+              <span className="text-slate-400">Change:</span>
+              <span className={`font-medium ${parseFloat(weightChange.weight) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {parseFloat(weightChange.weight) > 0 ? '+' : ''}{weightChange.weight} lbs
+              </span>
+              {weightChange.bodyFat && (
+                <span className={`font-medium ${parseFloat(weightChange.bodyFat) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(weightChange.bodyFat) > 0 ? '+' : ''}{weightChange.bodyFat}% BF
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Weight trend chart */}
+          <TrendChart
+            entries={weightEntries}
+            dataKey="weight"
+            goalValue={goals.target}
+            color="#3b82f6"
+            label="Weight"
+            unit=" lbs"
+          />
+
+          {/* Body fat trend chart */}
+          <TrendChart
+            entries={weightEntries}
+            dataKey="bodyFat"
+            goalValue={goals.bodyFatTarget}
+            color="#a855f7"
+            label="Body Fat %"
+            unit="%"
+          />
+
+          {/* Data table */}
+          {weightEntries.length === 0 ? (
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
               <div className="text-4xl mb-2">⚖️</div>
               <p className="text-slate-400">No weight entries yet. Start logging!</p>
@@ -165,15 +333,17 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                   <tr>
                     <th className="text-left p-3 font-medium text-slate-300">Date</th>
                     <th className="text-right p-3 font-medium text-slate-300">Weight</th>
+                    <th className="text-right p-3 font-medium text-slate-300">Body Fat</th>
                     <th className="text-right p-3 font-medium text-slate-300">Waist</th>
                     <th className="text-left p-3 font-medium text-slate-300">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.weightEntries || []).map(e => (
+                  {weightEntries.map(e => (
                     <tr key={e.id} className="border-t border-slate-700">
                       <td className="p-3 text-slate-300">{formatDate(e.date)}</td>
                       <td className="p-3 text-right font-medium text-white">{e.weight} lbs</td>
+                      <td className="p-3 text-right text-purple-400">{e.bodyFat != null ? `${e.bodyFat}%` : '—'}</td>
                       <td className="p-3 text-right text-slate-300">{e.waist ? `${e.waist}"` : '—'}</td>
                       <td className="p-3 text-slate-400">{e.notes || '—'}</td>
                     </tr>
@@ -280,9 +450,14 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
             <form onSubmit={submitWeight} className="space-y-3">
               <input type="date" value={weightForm.date} onChange={e => setWeightForm(f => ({ ...f, date: e.target.value }))}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
-              <input type="number" step="0.1" placeholder="Weight (lbs)" value={weightForm.weight}
-                onChange={e => setWeightForm(f => ({ ...f, weight: e.target.value }))}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" required />
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" step="0.1" placeholder="Weight (lbs)" value={weightForm.weight}
+                  onChange={e => setWeightForm(f => ({ ...f, weight: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" required />
+                <input type="number" step="0.1" placeholder="Body Fat %" value={weightForm.bodyFat}
+                  onChange={e => setWeightForm(f => ({ ...f, bodyFat: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+              </div>
               <input type="number" step="0.1" placeholder="Waist (inches, optional)" value={weightForm.waist}
                 onChange={e => setWeightForm(f => ({ ...f, waist: e.target.value }))}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />

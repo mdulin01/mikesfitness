@@ -45,8 +45,10 @@ export const healthPlan = {
   },
 
   weightGoals: {
-    current: 190,
-    target: 185,
+    current: 192,
+    target: 182,
+    bodyFatCurrent: 23,
+    bodyFatTarget: 20,
     waistTarget: "< 38 inches",
   },
 
