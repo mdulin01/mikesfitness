@@ -124,6 +124,25 @@ function EventsTab({ data, updateAppointment, addAppointment, deleteAppointment 
         </div>
       </div>
 
+      {/* Quick templates */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {[
+          { label: 'Annual Physical', type: 'primary', category: 'medical', notes: 'Annual physical exam' },
+          { label: 'Lab Work', type: 'lab', category: 'medical', notes: 'Routine labs (lipids, CBC, CMP)' },
+          { label: 'GI Follow-up', type: 'gi', category: 'medical', notes: "Crohn's follow-up" },
+          { label: 'Dentist', type: 'dentist', category: 'medical', notes: 'Dental cleaning' },
+          { label: 'Eye Exam', type: 'eye', category: 'medical', notes: 'Annual eye exam' },
+          { label: 'Dermatology', type: 'dermatology', category: 'medical', notes: 'Skin check' },
+          { label: 'NIH MRI', type: 'other-medical', category: 'medical', notes: 'HPRC MRI surveillance (NIH)' },
+        ].map(tmpl => (
+          <button key={tmpl.label} onClick={() => {
+            addAppointment({ type: tmpl.type, category: tmpl.category, notes: tmpl.notes, status: 'needs-scheduling', date: '', time: '', location: '', doctor: '' });
+          }} className="text-xs px-2.5 py-1.5 bg-slate-700 text-slate-300 rounded-lg whitespace-nowrap hover:bg-slate-600 transition-colors border border-slate-600">
+            + {tmpl.label}
+          </button>
+        ))}
+      </div>
+
       {/* Category filter */}
       <div className="flex gap-2 bg-slate-700/50 rounded-lg p-1">
         {EVENT_CATEGORIES.map(cat => (
