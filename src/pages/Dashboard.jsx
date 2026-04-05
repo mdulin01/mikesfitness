@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
+import { getLatestValue } from '../data/labData';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
 import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
 
@@ -28,12 +29,9 @@ const HABIT_GROUPS = {
 };
 
 const ALL_HABIT_ITEMS = [...HABIT_GROUPS.critical, ...HABIT_GROUPS.important, ...HABIT_GROUPS.optional];
-
-// Keep for backward compat with customDailyItems
 const DEFAULT_DAILY_ITEMS = ALL_HABIT_ITEMS;
 
-// Collapsible section wrapper
-function Section({ title, emoji, defaultOpen = true, rightAction, children }) {
+function Section({ title, emoji, defaultOpen = true, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700">
@@ -47,18 +45,80 @@ function Section({ title, emoji, defaultOpen = true, rightAction, children }) {
   );
 }
 
-const FIBER_FOODS = [
-  { id: 'oatmeal', label: 'Oatmeal', emoji: '🥣' },
-  { id: 'lentils', label: 'Lentils', emoji: '🫘' },
-  { id: 'beans', label: 'Beans', emoji: '🫘' },
-  { id: 'broccoli', label: 'Broccoli', emoji: '🥦' },
-  { id: 'berries', label: 'Berries', emoji: '🫐' },
-  { id: 'chia', label: 'Chia seeds', emoji: '🌱' },
-  { id: 'avocado', label: 'Avocado', emoji: '🥑' },
-  { id: 'almonds', label: 'Almonds', emoji: '🥜' },
-  { id: 'sweet-potato', label: 'Sweet potato', emoji: '🍠' },
-  { id: 'whole-wheat', label: 'Whole wheat', emoji: '🌾' },
-];
+/* ─── System status helpers ─── */
+function systemStatus(key, data, dailyChecks, medChecks) {
+  // Returns { status: 'green'|'yellow'|'red', label }
+  switch (key) {
+    case 'cardio': {
+      const apoB = getLatestValue('ApoB');
+      const ldl = getLatestValue('LDL-C') || getLatestValue('LDL');
+      const val = apoB?.value ?? ldl?.value ?? null;
+      if (val === null) return { status: 'yellow', label: 'No data' };
+      if (apoB && apoB.value < 80) return { status: 'green', label: `ApoB ${apoB.value}` };
+      if (apoB && apoB.value < 100) return { status: 'yellow', label: `ApoB ${apoB.value}` };
+      return { status: 'red', label: `ApoB ${apoB?.value || '?'}` };
+    }
+    case 'kidney': {
+      const egfr = getLatestValue('eGFR');
+      if (!egfr) return { status: 'yellow', label: 'No data' };
+      if (egfr.value >= 90) return { status: 'green', label: `eGFR ${egfr.value}` };
+      if (egfr.value >= 60) return { status: 'yellow', label: `eGFR ${egfr.value}` };
+      return { status: 'red', label: `eGFR ${egfr.value}` };
+    }
+    case 'metabolic': {
+      const a1c = getLatestValue('HbA1c');
+      const glucose = getLatestValue('Glucose');
+      if (a1c) {
+        if (a1c.value < 5.7) return { status: 'green', label: `A1c ${a1c.value}` };
+        if (a1c.value < 6.5) return { status: 'yellow', label: `A1c ${a1c.value}` };
+        return { status: 'red', label: `A1c ${a1c.value}` };
+      }
+      if (glucose) {
+        if (glucose.value < 100) return { status: 'green', label: `Glu ${glucose.value}` };
+        return { status: 'yellow', label: `Glu ${glucose.value}` };
+      }
+      return { status: 'yellow', label: 'No data' };
+    }
+    case 'brain': {
+      const cognitive = dailyChecks['cognitive'];
+      const sleep = dailyChecks['sleep'];
+      if (cognitive && sleep) return { status: 'green', label: 'Active' };
+      if (sleep || cognitive) return { status: 'yellow', label: 'Partial' };
+      return { status: 'red', label: 'Inactive' };
+    }
+    case 'muscle': {
+      const weights = data?.weightEntries || [];
+      const latest = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+      const bf = latest?.bodyFat;
+      if (bf && bf < 20) return { status: 'green', label: `${bf}% BF` };
+      if (bf && bf < 25) return { status: 'yellow', label: `${bf}% BF` };
+      if (bf) return { status: 'red', label: `${bf}% BF` };
+      return { status: 'yellow', label: 'No data' };
+    }
+    case 'gut': {
+      const calprotectin = getLatestValue('Fecal Calprotectin');
+      if (calprotectin) {
+        if (calprotectin.value < 50) return { status: 'green', label: `Cal ${calprotectin.value}` };
+        if (calprotectin.value < 200) return { status: 'yellow', label: `Cal ${calprotectin.value}` };
+        return { status: 'red', label: `Cal ${calprotectin.value}` };
+      }
+      return { status: 'yellow', label: 'No data' };
+    }
+    case 'sleep': {
+      const slept = dailyChecks['sleep'];
+      if (slept) return { status: 'green', label: '7+ hrs' };
+      return { status: 'red', label: 'Not logged' };
+    }
+    default:
+      return { status: 'yellow', label: '—' };
+  }
+}
+
+const STATUS_COLORS = {
+  green: { dot: 'bg-green-500', bg: 'bg-green-900/20', text: 'text-green-400', border: 'border-green-800' },
+  yellow: { dot: 'bg-yellow-500', bg: 'bg-yellow-900/20', text: 'text-yellow-400', border: 'border-yellow-800' },
+  red: { dot: 'bg-red-500', bg: 'bg-red-900/20', text: 'text-red-400', border: 'border-red-800' },
+};
 
 export default function Dashboard({
   data, toggleDayCompletion, getWeekKey, toggleDailyItem, setActiveSection,
@@ -82,16 +142,9 @@ export default function Dashboard({
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
   const todayFasting = data?.fastingLog?.[todayStr] || {};
 
-  // (fiber tracking moved into medSchedule — Benefiber + Psyllium)
-
   // Exercise log
   const [showExerciseLog, setShowExerciseLog] = useState(false);
   const [exerciseForm, setExerciseForm] = useState({ type: 'walk', duration: '', notes: '' });
-
-  // Fasting meal-time inputs
-  const [fastingEditMode, setFastingEditMode] = useState(false);
-
-  // (medsExpanded/supplementsExpanded removed — now using time-based groups)
 
   // Edit checklist
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -116,189 +169,250 @@ export default function Dashboard({
     return count;
   }, [data, dailyChecks]);
 
-  // Fitness events from appointments (shared with Events page and Training page)
-  const fitnessEvents = (data?.appointments || [])
-    .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr)
-    .sort((a, b) => a.date.localeCompare(b.date));
-
+  // Appointments
   const upcomingAppts = (data?.appointments || [])
     .filter(a => a.date && a.date >= todayStr && a.status === 'scheduled')
-    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const needsScheduling = (data?.appointments || []).filter(a => a.status === 'needs-scheduling');
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const daysUntil = (d) => Math.ceil((new Date(d) - new Date(todayStr)) / 86400000);
 
-  // Meds & Supplements computed — using medSchedule grouped by time
+  // Meds
   const allScheduleItems = (healthPlan.medSchedule || []).flatMap(g => g.items.filter(i => !i.optional));
-  const scheduleCheckedCount = allScheduleItems.filter(i => medChecks[i.name]).length;
   const totalMedItems = allScheduleItems.length;
-  const totalMedChecked = scheduleCheckedCount;
+  const totalMedChecked = allScheduleItems.filter(i => medChecks[i.name]).length;
   const allDone = totalMedChecked === totalMedItems;
-  // backward compat for health score
-  const medsTakenCount = healthPlan.medications.filter(m => medChecks[m.name]).length;
-  const supsTakenCount = healthPlan.supplements.filter(s => medChecks[s.name]).length;
 
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
   const dailyTotal = dailyItems.length;
 
-  // Eat Healthy ring
-  const healthyMealCount = todayMeals.length;
-  const healthyMealTarget = 2;
-  const eatHealthyPct = Math.min(1, healthyMealCount / healthyMealTarget);
-
   const startEditChecklist = () => { setEditItems([...dailyItems]); setEditingChecklist(true); };
   const saveChecklist = () => { updateDailyItems(editItems.filter(i => i.label.trim())); setEditingChecklist(false); };
 
-  // ===== HEALTH SCORE (0-100) =====
-  const healthScore = useMemo(() => {
-    // Exercise (20 pts): did you work out today? Use daily checklist as source of truth
+  // ===== SCORES =====
+  const scores = useMemo(() => {
+    // ── BEHAVIOR SCORE (0-100) ── what you did today
     const workoutDone = dailyChecks['workout'] || false;
-    const exercisePts = workoutDone ? 20 : (dailyChecks['move'] ? 10 : 0);
+    const moveDone = dailyChecks['move'] || false;
+    const mobilityDone = dailyChecks['mobility'] || false;
+    const exercisePts = (workoutDone ? 12 : 0) + (moveDone ? 4 : 0) + (mobilityDone ? 4 : 0); // 20 max
 
-    // Nutrition (20 pts): meals logged + fiber (Benefiber AM + Psyllium PM)
     const mealPts = Math.min(10, todayMeals.length * 5);
     const fiberPts = (medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0);
-    const nutritionPts = mealPts + fiberPts;
+    const nutritionPts = mealPts + fiberPts; // 20 max
 
-    // Sleep (20 pts): sleep habit checked
-    const sleepPts = dailyChecks['sleep'] ? 20 : 0;
+    const sleepPts = dailyChecks['sleep'] ? 20 : 0; // 20 max
 
-    // Med adherence (20 pts): proportional to scheduled items taken
-    const medPts = totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0;
+    const medPts = totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0; // 20 max
 
-    // Weight/Labs trend (20 pts): based on weight trend toward goal
-    const weights = data?.weightEntries || [];
-    let trendPts = 10; // default neutral
-    if (weights.length >= 2) {
-      const sorted = [...weights].sort((a, b) => b.date.localeCompare(a.date));
-      const latest = sorted[0].weight;
-      const target = healthPlan.weightGoals?.target || 185;
-      const prev = sorted[1].weight;
-      // Moving toward target = good
-      if (Math.abs(latest - target) < Math.abs(prev - target)) trendPts = 20;
-      else if (Math.abs(latest - target) === Math.abs(prev - target)) trendPts = 10;
-      else trendPts = 5;
+    // Fasting
+    const lastMeal = todayFasting.lastMealYesterday || '';
+    const firstMeal = todayFasting.firstMealToday || '';
+    let fastPts = 0;
+    if (lastMeal && firstMeal) {
+      const [lh, lm] = lastMeal.split(':').map(Number);
+      const [fh, fm] = firstMeal.split(':').map(Number);
+      const totalMins = (24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm);
+      const hrs = totalMins / 60;
+      fastPts = hrs >= fastingSettings.targetFastHours ? 20 : hrs >= 12 ? 10 : 0;
     }
+    // 20 max
 
-    return {
-      total: exercisePts + nutritionPts + sleepPts + medPts + trendPts,
-      exercise: exercisePts,
-      nutrition: nutritionPts,
-      sleep: sleepPts,
-      meds: medPts,
-      trend: trendPts,
-    };
-  }, [completions, todayDow, dailyChecks, todayMeals, medChecks, medsTakenCount, supsTakenCount, data?.weightEntries]);
+    const behavior = exercisePts + nutritionPts + sleepPts + medPts + fastPts; // 0-100
+
+    // ── BIOLOGY SCORE (0-100) ── your lab/vital numbers
+    // Each system scores 0-14.3 (7 systems)
+    const bioParts = [];
+    const apoB = getLatestValue('ApoB');
+    bioParts.push(apoB ? (apoB.value < 70 ? 14.3 : apoB.value < 90 ? 10 : apoB.value < 120 ? 5 : 0) : 7); // neutral if no data
+
+    const egfr = getLatestValue('eGFR');
+    bioParts.push(egfr ? (egfr.value >= 90 ? 14.3 : egfr.value >= 60 ? 10 : egfr.value >= 30 ? 5 : 0) : 7);
+
+    const a1c = getLatestValue('HbA1c');
+    bioParts.push(a1c ? (a1c.value < 5.7 ? 14.3 : a1c.value < 6.5 ? 10 : 5) : 7);
+
+    // Weight toward goal
+    const weights = data?.weightEntries || [];
+    const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    const wTarget = healthPlan.weightGoals?.target || 185;
+    if (latestW) {
+      const diff = Math.abs(latestW.weight - wTarget);
+      bioParts.push(diff < 5 ? 14.3 : diff < 15 ? 10 : diff < 25 ? 5 : 0);
+    } else bioParts.push(7);
+
+    // BP
+    const bpEntries = data?.bpEntries || [];
+    const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    if (latestBP) {
+      bioParts.push(latestBP.systolic < 120 && latestBP.diastolic < 80 ? 14.3 :
+        latestBP.systolic < 130 ? 10 : latestBP.systolic < 140 ? 5 : 0);
+    } else bioParts.push(7);
+
+    // Body fat
+    const bf = latestW?.bodyFat;
+    bioParts.push(bf ? (bf < 18 ? 14.3 : bf < 22 ? 10 : bf < 28 ? 5 : 0) : 7);
+
+    // Gut (calprotectin)
+    const cal = getLatestValue('Fecal Calprotectin');
+    bioParts.push(cal ? (cal.value < 50 ? 14.3 : cal.value < 200 ? 10 : 5) : 7);
+
+    const biology = Math.round(bioParts.reduce((s, v) => s + v, 0));
+
+    const overall = Math.round(behavior * 0.5 + biology * 0.5);
+
+    return { overall, behavior, biology };
+  }, [dailyChecks, todayMeals, medChecks, totalMedChecked, totalMedItems, todayFasting, data?.weightEntries, data?.bpEntries]);
+
+  // Systems for display
+  const systems = useMemo(() => [
+    { key: 'cardio', label: 'Cardio', emoji: '❤️' },
+    { key: 'kidney', label: 'Kidney', emoji: '🫘' },
+    { key: 'metabolic', label: 'Metabolic', emoji: '🔬' },
+    { key: 'brain', label: 'Brain', emoji: '🧠' },
+    { key: 'muscle', label: 'Muscle', emoji: '💪' },
+    { key: 'gut', label: 'Gut', emoji: '🦠' },
+    { key: 'sleep', label: 'Sleep', emoji: '😴' },
+  ].map(s => ({ ...s, ...systemStatus(s.key, data, dailyChecks, medChecks) })),
+  [data, dailyChecks, medChecks]);
+
+  // Key numbers
+  const keyNumbers = useMemo(() => {
+    const weights = data?.weightEntries || [];
+    const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    const bpEntries = data?.bpEntries || [];
+    const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    const vo2 = data?.vo2Entries || [];
+    const latestVO2 = vo2.length > 0 ? [...vo2].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    const hrEntries = data?.hrEntries || [];
+    const latestHR = hrEntries.length > 0 ? [...hrEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    const apoB = getLatestValue('ApoB');
+    const egfr = getLatestValue('eGFR');
+
+    return [
+      { label: 'Weight', value: latestW ? `${latestW.weight}` : '—', unit: 'lbs' },
+      { label: 'BF', value: latestW?.bodyFat ? `${latestW.bodyFat}` : '—', unit: '%' },
+      { label: 'ApoB', value: apoB ? `${apoB.value}` : '—', unit: '' },
+      { label: 'eGFR', value: egfr ? `${egfr.value}` : '—', unit: '' },
+      { label: 'VO2', value: latestVO2 ? `${latestVO2.vo2max}` : '—', unit: '' },
+      { label: 'BP', value: latestBP ? `${latestBP.systolic}/${latestBP.diastolic}` : '—', unit: '' },
+      { label: 'RHR', value: latestHR ? `${latestHR.hr}` : '—', unit: '' },
+    ];
+  }, [data?.weightEntries, data?.bpEntries, data?.vo2Entries, data?.hrEntries]);
+
+  // Fasting computed
+  const fastingStatus = useMemo(() => {
+    const lastMeal = todayFasting.lastMealYesterday || '';
+    const firstMeal = todayFasting.firstMealToday || '';
+    if (!lastMeal || !firstMeal) return { hasBoth: false, hours: 0, mins: 0, metGoal: false, pct: 0 };
+    const [lh, lm] = lastMeal.split(':').map(Number);
+    const [fh, fm] = firstMeal.split(':').map(Number);
+    const totalMins = (24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    const target = fastingSettings.targetFastHours;
+    return { hasBoth: true, hours, mins, metGoal: (hours + mins / 60) >= target, pct: Math.min(1, (hours + mins / 60) / target) };
+  }, [todayFasting, fastingSettings]);
+
+  // Today checklist items for the compact view
+  const todayItems = [
+    { key: 'workout', label: 'Exercise', done: dailyChecks['workout'] },
+    { key: 'sleep', label: 'Sleep', done: dailyChecks['sleep'] },
+    { key: 'nutrition', label: 'Nutrition', done: todayMeals.length >= 2 },
+    { key: 'meds', label: 'Meds', done: allDone },
+    { key: 'fasting', label: 'Fasting', done: fastingStatus.metGoal },
+  ];
+
+  const scoreColor = (s) => s >= 80 ? 'text-green-400' : s >= 60 ? 'text-yellow-400' : 'text-red-400';
+  const scoreBg = (s) => s >= 80 ? 'from-green-900/40 to-emerald-900/40 border-green-700/50' :
+    s >= 60 ? 'from-yellow-900/40 to-amber-900/40 border-yellow-700/50' :
+    'from-red-900/40 to-rose-900/40 border-red-700/50';
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-5 pb-24 md:pb-6">
-      {/* Greeting + Streak */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, Mike
-          </h1>
-          <p className="text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-        </div>
-        {streak > 0 && (
-          <div className="bg-gradient-to-br from-orange-500 to-red-600 px-3 py-2 rounded-xl text-center">
-            <div className="text-xl font-bold text-white">🔥 {streak}</div>
-            <div className="text-xs text-orange-100">day streak</div>
-          </div>
-        )}
-      </div>
+    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 pb-24 md:pb-6">
 
-      {/* Health Score */}
-      <div className={`rounded-xl border p-4 ${
-        healthScore.total >= 80 ? 'bg-gradient-to-r from-green-900/50 to-emerald-900/50 border-green-700/50' :
-        healthScore.total >= 50 ? 'bg-gradient-to-r from-yellow-900/50 to-amber-900/50 border-yellow-700/50' :
-        'bg-gradient-to-r from-red-900/50 to-rose-900/50 border-red-700/50'
-      }`}>
-        <div className="flex items-center justify-between mb-2">
+      {/* ══════ HEALTH OS HEADER ══════ */}
+      <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg(scores.overall)}`}>
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-3xl font-bold text-white">{healthScore.total}<span className="text-lg text-slate-400">/100</span></div>
-            <div className="text-xs text-slate-400">Today's Health Score</div>
-          </div>
-          <div className="text-4xl">{healthScore.total >= 80 ? '🟢' : healthScore.total >= 50 ? '🟡' : '🔴'}</div>
-        </div>
-        <div className="grid grid-cols-5 gap-1 text-center text-xs">
-          {[
-            { label: 'Exercise', pts: healthScore.exercise, max: 20 },
-            { label: 'Nutrition', pts: healthScore.nutrition, max: 20 },
-            { label: 'Sleep', pts: healthScore.sleep, max: 20 },
-            { label: 'Meds', pts: healthScore.meds, max: 20 },
-            { label: 'Trend', pts: healthScore.trend, max: 20 },
-          ].map(s => (
-            <div key={s.label}>
-              <div className="h-1.5 bg-slate-700 rounded-full mb-1">
-                <div className={`h-full rounded-full ${s.pts >= s.max * 0.8 ? 'bg-green-500' : s.pts >= s.max * 0.4 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                  style={{ width: `${(s.pts / s.max) * 100}%` }} />
-              </div>
-              <span className="text-slate-500">{s.label}</span>
-              <div className="text-slate-300 font-medium">{s.pts}/{s.max}</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mike's Health OS</div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className={`text-4xl font-bold ${scoreColor(scores.overall)}`}>{scores.overall}</span>
+              <span className="text-slate-500 text-sm">/ 100</span>
             </div>
+          </div>
+          <div className="text-right space-y-1">
+            <div className="flex items-center gap-2 justify-end">
+              <span className="text-xs text-slate-400">Behavior</span>
+              <span className={`text-lg font-bold ${scoreColor(scores.behavior)}`}>{scores.behavior}</span>
+            </div>
+            <div className="flex items-center gap-2 justify-end">
+              <span className="text-xs text-slate-400">Biology</span>
+              <span className={`text-lg font-bold ${scoreColor(scores.biology)}`}>{scores.biology}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Systems row */}
+        <div className="grid grid-cols-7 gap-1.5">
+          {systems.map(sys => {
+            const c = STATUS_COLORS[sys.status];
+            return (
+              <div key={sys.key} className={`${c.bg} border ${c.border} rounded-lg p-1.5 text-center`}>
+                <div className="flex items-center justify-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${c.dot}`} />
+                  <span className="text-xs font-medium text-slate-300">{sys.emoji}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{sys.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Key Numbers */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs">
+          {keyNumbers.map(n => (
+            <span key={n.label} className="text-slate-400">
+              <span className="text-slate-500">{n.label}</span>{' '}
+              <span className="text-white font-semibold">{n.value}</span>
+              {n.unit && <span className="text-slate-600 ml-0.5">{n.unit}</span>}
+            </span>
           ))}
         </div>
       </div>
 
-      {/* Motivational Quote */}
-      <div className="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 border border-blue-800/50 rounded-xl p-4">
+      {/* ══════ TODAY'S CHECKLIST (compact) ══════ */}
+      <div className="flex gap-2">
+        {todayItems.map(item => (
+          <div key={item.key} className={`flex-1 py-2 rounded-lg text-center text-xs font-medium border ${
+            item.done ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-500'
+          }`}>
+            {item.done ? '✓' : '○'} {item.label}
+          </div>
+        ))}
+      </div>
+
+      {/* ══════ STREAK + DATE ══════ */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+        {streak > 0 && (
+          <div className="flex items-center gap-1.5 bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 rounded-full">
+            <span className="text-sm">🔥</span>
+            <span className="text-sm font-bold text-white">{streak} day streak</span>
+          </div>
+        )}
+      </div>
+
+      {/* Quote */}
+      <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-800/30 rounded-xl px-4 py-3">
         <p className="text-sm text-blue-200 italic">"{quote.text}"</p>
         {(quote.author || quote.source) && (
           <p className="text-xs text-blue-400 mt-1">— {quote.author || quote.source}</p>
         )}
       </div>
 
-      {/* Progress Ring Row — 4 rings */}
-      <div className="grid grid-cols-4 gap-2">
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
-          <div className="relative w-14 h-14 mx-auto mb-1">
-            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#3b82f6" strokeWidth="3"
-                strokeDasharray={`${(([dailyChecks['workout'], dailyChecks['move'], dailyChecks['mobility']].filter(Boolean).length) / 3) * 100} 100`} strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-blue-400">{[dailyChecks['workout'], dailyChecks['move'], dailyChecks['mobility']].filter(Boolean).length}/3</div>
-          </div>
-          <div className="text-xs text-slate-400">Move</div>
-        </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
-          <div className="relative w-14 h-14 mx-auto mb-1">
-            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
-                strokeDasharray={`${eatHealthyPct * 100} 100`} strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-emerald-400">{healthyMealCount}/{healthyMealTarget}</div>
-          </div>
-          <div className="text-xs text-slate-400">Eat Healthy</div>
-        </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
-          <div className="relative w-14 h-14 mx-auto mb-1">
-            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke={allDone ? '#22c55e' : '#f59e0b'} strokeWidth="3"
-                strokeDasharray={`${(totalMedChecked / totalMedItems) * 100} 100`} strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-lg">{allDone ? '✅' : '💊'}</div>
-          </div>
-          <div className="text-xs text-slate-400">Take Meds</div>
-        </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
-          <div className="relative w-14 h-14 mx-auto mb-1">
-            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#22c55e" strokeWidth="3"
-                strokeDasharray={`${(dailyProgress / dailyTotal) * 100} 100`} strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-green-400">{dailyProgress}/{dailyTotal}</div>
-          </div>
-          <div className="text-xs text-slate-400">Healthy Habits</div>
-        </div>
-      </div>
-
-      {/* Today's Workout */}
+      {/* ══════ TODAY'S WORKOUT ══════ */}
       {todayPlan && (
         <Section title="Today's Workout" emoji={todayPlan.emoji} defaultOpen={true}>
           <div className="flex items-center gap-3 mb-3">
@@ -309,12 +423,10 @@ export default function Dashboard({
               onClick={() => { toggleDayCompletion(todayDow, weekKey); if (!dailyChecks['workout']) toggleDailyItem(todayStr, 'workout'); }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 completions[todayDow] ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-500'
-              }`}
-            >
+              }`}>
               {completions[todayDow] ? '✓ Done!' : 'Mark Done'}
             </button>
           </div>
-          {/* Quick exercise log */}
           {!showExerciseLog ? (
             <button onClick={() => setShowExerciseLog(true)}
               className="text-xs text-blue-400 hover:underline">+ Log exercise details</button>
@@ -348,13 +460,10 @@ export default function Dashboard({
                   setExerciseForm({ type: 'walk', duration: '', notes: '' });
                   setShowExerciseLog(false);
                   if (!dailyChecks['move']) toggleDailyItem(todayStr, 'move');
-                }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500">
-                  Save
-                </button>
+                }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500">Save</button>
                 <button onClick={() => setShowExerciseLog(false)}
                   className="px-3 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-500">Cancel</button>
               </div>
-              {/* Today's logged exercises */}
               {(data?.exerciseLog?.[todayStr] || []).length > 0 && (
                 <div className="pt-2 border-t border-slate-600 space-y-1">
                   {(data.exerciseLog[todayStr]).map(e => (
@@ -374,14 +483,13 @@ export default function Dashboard({
         </Section>
       )}
 
-      {/* Today's Healthy Habits — Categorized */}
+      {/* ══════ TODAY'S HABITS ══════ */}
       <div className="bg-slate-800 rounded-xl border border-slate-700">
         <div className="flex items-center justify-between p-4">
           <h2 className="font-semibold text-white">✅ Today's Habits</h2>
           <button onClick={startEditChecklist} className="text-xs text-blue-400 hover:underline">Edit ✏️</button>
         </div>
         <div className="px-4 pb-4 -mt-1 space-y-3">
-          {/* Critical — large, red border if missed */}
           <div>
             <div className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-1.5">🚨 Critical</div>
             <div className="space-y-1.5">
@@ -401,7 +509,6 @@ export default function Dashboard({
               })}
             </div>
           </div>
-          {/* Important */}
           <div>
             <div className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-1.5">⭐ Important</div>
             <div className="space-y-1">
@@ -421,7 +528,6 @@ export default function Dashboard({
               })}
             </div>
           </div>
-          {/* Optional */}
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Optional</div>
             <div className="space-y-1">
@@ -449,7 +555,7 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Meds & Supplements — by time of day */}
+      {/* ══════ MEDS & SUPPLEMENTS ══════ */}
       <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>
         <div className="space-y-2">
           {(healthPlan.medSchedule || []).map(group => {
@@ -457,48 +563,42 @@ export default function Dashboard({
             const checkedInGroup = required.filter(i => medChecks[i.name]).length;
             const groupDone = checkedInGroup === required.length;
             return (
-              <div key={group.time}>
-                <div className={`p-3 rounded-lg transition-all ${
-                  groupDone ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-base">{group.emoji}</span>
-                    <span className={`text-sm font-medium ${groupDone ? 'text-green-400' : 'text-slate-300'}`}>
-                      {group.label}
-                    </span>
-                    <span className="text-xs text-slate-500 ml-auto">{checkedInGroup}/{required.length}</span>
-                  </div>
-                  <div className="space-y-1">
-                    {group.items.map(item => {
-                      const done = medChecks[item.name];
-                      return (
-                        <button key={item.name} onClick={() => !item.optional && toggleMedCheck(todayStr, item.name)}
-                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all text-sm ${
-                            item.optional ? 'opacity-60 cursor-default' :
-                            done ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
-                          }`}>
-                          {!item.optional && (
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                              done ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                            }`}>{done && <span className="text-white text-[10px]">✓</span>}</div>
-                          )}
-                          {item.optional && <span className="w-4 text-center text-slate-600">–</span>}
-                          <span className={`flex-1 text-left ${done ? 'line-through' : ''}`}>
-                            {item.name}
-                            {item.rx && <span className="text-[10px] ml-1 px-1 py-0.5 rounded bg-blue-900/50 text-blue-400">Rx</span>}
-                          </span>
-                          <span className="text-[10px] text-slate-500">{item.notes}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div key={group.time} className={`p-3 rounded-lg transition-all ${
+                groupDone ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">{group.emoji}</span>
+                  <span className={`text-sm font-medium ${groupDone ? 'text-green-400' : 'text-slate-300'}`}>{group.label}</span>
+                  <span className="text-xs text-slate-500 ml-auto">{checkedInGroup}/{required.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {group.items.map(item => {
+                    const done = medChecks[item.name];
+                    return (
+                      <button key={item.name} onClick={() => !item.optional && toggleMedCheck(todayStr, item.name)}
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all text-sm ${
+                          item.optional ? 'opacity-60 cursor-default' :
+                          done ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
+                        }`}>
+                        {!item.optional && (
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            done ? 'border-green-500 bg-green-500' : 'border-slate-500'
+                          }`}>{done && <span className="text-white text-[10px]">✓</span>}</div>
+                        )}
+                        {item.optional && <span className="w-4 text-center text-slate-600">–</span>}
+                        <span className={`flex-1 text-left ${done ? 'line-through' : ''}`}>
+                          {item.name}
+                          {item.rx && <span className="text-[10px] ml-1 px-1 py-0.5 rounded bg-blue-900/50 text-blue-400">Rx</span>}
+                        </span>
+                        <span className="text-[10px] text-slate-500">{item.notes}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Overall progress */}
         <div className="mt-3 flex items-center gap-2">
           <div className="flex-1 bg-slate-700 rounded-full h-2">
             <div className={`rounded-full h-2 transition-all ${allDone ? 'bg-green-500' : 'bg-amber-500'}`}
@@ -506,14 +606,9 @@ export default function Dashboard({
           </div>
           <span className="text-xs text-slate-400">{totalMedChecked}/{totalMedItems}</span>
         </div>
-        {allDone && (
-          <div className="mt-2 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
-            <span className="text-green-400 text-sm font-medium">All meds & supplements taken!</span>
-          </div>
-        )}
       </Section>
 
-      {/* Nutrition Summary */}
+      {/* ══════ NUTRITION SUMMARY ══════ */}
       <Section title="Today's Nutrition" emoji="🍽️" defaultOpen={true}>
         <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('nutrition')} className="text-sm text-blue-400 hover:underline">Log meals →</button>
@@ -539,71 +634,40 @@ export default function Dashboard({
         )}
       </Section>
 
-      {/* Intermittent Fasting Tracker */}
+      {/* ══════ FASTING ══════ */}
       <Section title="Intermittent Fasting" emoji="⏱️" defaultOpen={true}>
         {(() => {
-          const yesterdayStr = offsetDateStr(todayStr, -1);
           const lastMeal = todayFasting.lastMealYesterday || '';
           const firstMeal = todayFasting.firstMealToday || '';
-
-          // Calculate fasting hours from last meal yesterday to first meal today
-          let fastHours = 0;
-          let fastMins = 0;
-          let hasBothMeals = false;
-          if (lastMeal && firstMeal) {
-            hasBothMeals = true;
-            const [lh, lm] = lastMeal.split(':').map(Number);
-            const [fh, fm] = firstMeal.split(':').map(Number);
-            // Last meal was yesterday, first meal is today
-            const lastMealMins = lh * 60 + lm;
-            const firstMealMins = fh * 60 + fm;
-            const totalMins = (24 * 60 - lastMealMins) + firstMealMins;
-            fastHours = Math.floor(totalMins / 60);
-            fastMins = totalMins % 60;
-          }
-          const totalFastDecimal = fastHours + fastMins / 60;
+          const { hasBoth, hours, mins, metGoal, pct } = fastingStatus;
           const targetHours = fastingSettings.targetFastHours;
-          const pct = hasBothMeals ? Math.min(1, totalFastDecimal / targetHours) : 0;
-          const metGoal = hasBothMeals && totalFastDecimal >= targetHours;
-
-          // Quick presets for common meal times
           const lastMealPresets = ['18:00', '19:00', '20:00', '21:00'];
           const firstMealPresets = ['10:00', '11:00', '12:00', '13:00'];
 
           return (
             <div className="space-y-3">
-              {/* Status */}
               <div className={`flex items-center gap-3 p-3 rounded-lg ${
                 metGoal ? 'bg-green-900/30 border border-green-700' :
-                hasBothMeals ? 'bg-amber-900/30 border border-amber-700' :
+                hasBoth ? 'bg-amber-900/30 border border-amber-700' :
                 'bg-slate-700/50 border border-slate-600'
               }`}>
-                <div className="text-2xl">{metGoal ? '✅' : hasBothMeals ? '⏱️' : '🍽️'}</div>
+                <div className="text-2xl">{metGoal ? '✅' : hasBoth ? '⏱️' : '🍽️'}</div>
                 <div className="flex-1">
                   <div className="text-sm font-medium text-white">
-                    {metGoal ? `${fastHours}h ${fastMins}m fast — Goal met!` :
-                     hasBothMeals ? `${fastHours}h ${fastMins}m fast (goal: ${targetHours}h)` :
+                    {metGoal ? `${hours}h ${mins}m fast — Goal met!` :
+                     hasBoth ? `${hours}h ${mins}m fast (goal: ${targetHours}h)` :
                      'Log your meals to track fasting'}
                   </div>
-                  {hasBothMeals && (
-                    <div className="text-xs text-slate-400">
-                      Last meal yesterday {lastMeal} → First meal today {firstMeal}
-                    </div>
-                  )}
+                  {hasBoth && <div className="text-xs text-slate-400">Last meal yesterday {lastMeal} → First meal today {firstMeal}</div>}
                 </div>
               </div>
-
-              {/* Progress bar */}
-              {hasBothMeals && (
+              {hasBoth && (
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div className={`rounded-full h-2 transition-all ${metGoal ? 'bg-green-500' : 'bg-amber-500'}`}
                     style={{ width: `${pct * 100}%` }} />
                 </div>
               )}
-
-              {/* Meal time inputs */}
               <div className="grid grid-cols-2 gap-3">
-                {/* Last meal yesterday */}
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">🌙 Last meal yesterday</label>
                   <input type="time" value={lastMeal}
@@ -618,7 +682,6 @@ export default function Dashboard({
                     ))}
                   </div>
                 </div>
-                {/* First meal today */}
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">☀️ First meal today</label>
                   <input type="time" value={firstMeal}
@@ -634,23 +697,16 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-
-              {/* Reset */}
               {(lastMeal || firstMeal) && (
                 <button onClick={() => saveFastingEntry(todayStr, { lastMealYesterday: null, firstMealToday: null, fastStart: null, fastEnd: null })}
                   className="text-xs text-slate-500 hover:text-slate-400">Reset</button>
               )}
-
-              {/* Target info */}
-              <div className="text-xs text-slate-500">
-                Goal: {targetHours}h fast · Typical: eat by {fastingSettings.typicalFastStart}, resume at {fastingSettings.typicalFeedingStart}
-              </div>
             </div>
           );
         })()}
       </Section>
 
-      {/* This Week's Schedule */}
+      {/* ══════ THIS WEEK ══════ */}
       <Section title="This Week" emoji="📅" defaultOpen={true}>
         <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('training')} className="text-sm text-blue-400 hover:underline">View all →</button>
@@ -676,46 +732,12 @@ export default function Dashboard({
         </div>
       </Section>
 
-      {/* Race Calendar — uses fitness events from appointments (shared data) */}
-      <Section title="Race Calendar" emoji="🏁" defaultOpen={true}>
-        {fitnessEvents.length === 0 ? (
-          <p className="text-sm text-slate-500">No upcoming races. Add one from Events or Training.</p>
-        ) : (
-          <div className="space-y-2">
-            {fitnessEvents.map(event => {
-              const type = ALL_EVENT_TYPES.find(t => t.id === event.type);
-              const days = daysUntil(event.date);
-              const totalDays = Math.ceil((new Date(event.date) - new Date('2026-01-01')) / 86400000);
-              const elapsed = totalDays - days;
-              const pct = Math.max(0, Math.min(100, (elapsed / totalDays) * 100));
-              const color = type?.color || '#3b82f6';
-              return (
-                <div key={event.id} className="p-3 rounded-lg" style={{ background: color + '15', borderLeft: `3px solid ${color}` }}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">{type?.emoji || '🏅'}</span>
-                    <div className="flex-1">
-                      <div className="font-medium text-white">{event.notes || type?.label || 'Event'}</div>
-                      <div className="text-xs text-slate-400">{event.location} · {formatDate(event.date)} · {days} days away</div>
-                    </div>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-1.5">
-                    <div className="rounded-full h-1.5 transition-all" style={{ width: `${pct}%`, background: color }} />
-                  </div>
-                </div>
-              );
-            })}
+      {/* ══════ UPCOMING EVENTS ══════ */}
+      {(upcomingAppts.length > 0 || needsScheduling.length > 0) && (
+        <Section title="Upcoming" emoji="📋" defaultOpen={true}>
+          <div className="flex justify-end -mt-2 mb-2">
+            <button onClick={() => setActiveSection('life')} className="text-sm text-blue-400 hover:underline">View all →</button>
           </div>
-        )}
-      </Section>
-
-      {/* Upcoming Events */}
-      <Section title="Upcoming Events" emoji="📋" defaultOpen={true}>
-        <div className="flex justify-end -mt-2 mb-2">
-          <button onClick={() => setActiveSection('events')} className="text-sm text-blue-400 hover:underline">View all →</button>
-        </div>
-        {upcomingAppts.length === 0 && needsScheduling.length === 0 ? (
-          <p className="text-slate-500 text-sm">No upcoming events</p>
-        ) : (
           <div className="space-y-2">
             {upcomingAppts.map(appt => {
               const type = ALL_EVENT_TYPES.find(t => t.id === appt.type) || ALL_EVENT_TYPES[ALL_EVENT_TYPES.length - 1];
@@ -726,26 +748,19 @@ export default function Dashboard({
                     <div className="text-sm font-medium text-slate-200">{appt.notes || type.label}</div>
                     <div className="text-xs text-slate-400">{formatDate(appt.date)} · {daysUntil(appt.date)} days</div>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    type.category === 'medical' ? 'bg-blue-900/40 text-blue-400' :
-                    type.category === 'fitness' ? 'bg-green-900/40 text-green-400' :
-                    'bg-purple-900/40 text-purple-400'
-                  }`}>{type.category}</span>
                 </div>
               );
             })}
             {needsScheduling.length > 0 && (
               <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-lg">
-                <div className="text-sm font-medium text-amber-400">⚠️ {needsScheduling.length} event{needsScheduling.length > 1 ? 's' : ''} need scheduling</div>
+                <div className="text-sm font-medium text-amber-400">⚠️ {needsScheduling.length} to schedule</div>
               </div>
             )}
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
 
-      {/* ========== MODALS ========== */}
-
-      {/* Edit Checklist Modal */}
+      {/* ══════ MODALS ══════ */}
       {editingChecklist && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingChecklist(false)}>
           <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700" onClick={e => e.stopPropagation()}>
