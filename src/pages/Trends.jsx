@@ -101,7 +101,7 @@ function ChartCard({ title, emoji, data, goalValue, color, unit }) {
 }
 
 // Blood Pressure form
-function BloodPressureForm({ save }) {
+function BloodPressureForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -127,7 +127,7 @@ function BloodPressureForm({ save }) {
       diastolic: parseInt(diastolic),
       notes,
     };
-    save({ bpEntries: [...(window.__bpEntries || []), chartEntry] });
+    save({ bpEntries: [...currentEntries, chartEntry] });
     setDate(toLocalDateStr());
     setSystolic('');
     setDiastolic('');
@@ -158,7 +158,7 @@ function BloodPressureForm({ save }) {
 }
 
 // Resting Heart Rate form
-function RestingHeartRateForm({ save }) {
+function RestingHeartRateForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [bpm, setBpm] = useState('');
   const [notes, setNotes] = useState('');
@@ -174,7 +174,7 @@ function RestingHeartRateForm({ save }) {
       bpm: parseInt(bpm),
       notes,
     };
-    save({ hrEntries: [...(window.__hrEntries || []), newEntry] });
+    save({ hrEntries: [...currentEntries, { ...newEntry, value: parseInt(bpm) }] });
     setDate(toLocalDateStr());
     setBpm('');
     setNotes('');
@@ -200,7 +200,7 @@ function RestingHeartRateForm({ save }) {
 }
 
 // Run Pace form
-function RunPaceForm({ save }) {
+function RunPaceForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [distance, setDistance] = useState('');
   const [duration, setDuration] = useState('');
@@ -222,7 +222,7 @@ function RunPaceForm({ save }) {
       pace: parseFloat(pace),
       notes,
     };
-    save({ runEntries: [...(window.__runEntries || []), newEntry] });
+    save({ runEntries: [...currentEntries, newEntry] });
     setDate(toLocalDateStr());
     setDistance('');
     setDuration('');
@@ -253,7 +253,7 @@ function RunPaceForm({ save }) {
 }
 
 // VO2 Max form
-function VO2MaxForm({ save }) {
+function VO2MaxForm({ save, currentEntries }) {
   const [date, setDate] = useState(toLocalDateStr());
   const [value, setValue] = useState('');
   const [notes, setNotes] = useState('');
@@ -269,7 +269,7 @@ function VO2MaxForm({ save }) {
       value: parseFloat(value),
       notes,
     };
-    save({ vo2Entries: [...(window.__vo2Entries || []), newEntry] });
+    save({ vo2Entries: [...currentEntries, newEntry] });
     setDate(toLocalDateStr());
     setValue('');
     setNotes('');
@@ -401,9 +401,9 @@ export default function Trends({ data, ...rest }) {
           <ChartCard title="Body Fat %" emoji="📐" data={bodyFatData} goalValue={20} color="#f59e0b" unit="%" />
           <ChartCard title="Waist" emoji="📏" data={waistData} goalValue={38} color="#8b5cf6" unit="in" />
           <ChartCard title="Blood Pressure (Systolic)" emoji="❤️" data={bpData} goalValue={120} color="#ec4899" unit="mmHg" />
-          <BloodPressureForm save={rest?.save || (() => {})} />
+          <BloodPressureForm save={rest?.save || (() => {})} currentEntries={data?.bpEntries || []} />
           <ChartCard title="Resting Heart Rate" emoji="💓" data={hrData} goalValue={60} color="#f97316" unit="bpm" />
-          <RestingHeartRateForm save={rest?.save || (() => {})} />
+          <RestingHeartRateForm save={rest?.save || (() => {})} currentEntries={data?.hrEntries || []} />
         </div>
       )}
 
@@ -411,9 +411,9 @@ export default function Trends({ data, ...rest }) {
       {activeTab === 'fitness' && (
         <div className="space-y-4">
           <ChartCard title="Run Pace" emoji="🏃" data={runPaceData} goalValue={9.0} color="#10b981" unit="min/mile" />
-          <RunPaceForm save={rest?.save || (() => {})} />
+          <RunPaceForm save={rest?.save || (() => {})} currentEntries={data?.runEntries || []} />
           <ChartCard title="VO2 Max" emoji="💨" data={vo2Data} goalValue={40} color="#06b6d4" unit="ml/kg/min" />
-          <VO2MaxForm save={rest?.save || (() => {})} />
+          <VO2MaxForm save={rest?.save || (() => {})} currentEntries={data?.vo2Entries || []} />
         </div>
       )}
 
@@ -428,23 +428,37 @@ export default function Trends({ data, ...rest }) {
       )}
 
       {/* Kidney Tab */}
-      {activeTab === 'kidney' && (
-        <div className="space-y-4">
-          <ChartCard title="Creatinine" emoji="🫘" data={creatinineTrend} goalValue={1.27} color="#f59e0b" unit="mg/dL" />
-          <ChartCard title="eGFR" emoji="🔍" data={egfrTrend} goalValue={60} color="#3b82f6" unit="mL/min" />
+      {activeTab === 'kidney' && (() => {
+        const latestEgfr = egfrTrend.length > 0 ? egfrTrend[egfrTrend.length - 1].value : null;
+        const getStage = (val) => {
+          if (val >= 90) return '1';
+          if (val >= 60) return '2';
+          if (val >= 45) return '3a';
+          if (val >= 30) return '3b';
+          if (val >= 15) return '4';
+          return '5';
+        };
+        const stage = latestEgfr ? getStage(latestEgfr) : null;
+        return (
+          <div className="space-y-4">
+            <ChartCard title="Creatinine" emoji="🫘" data={creatinineTrend} goalValue={1.27} color="#f59e0b" unit="mg/dL" />
+            <ChartCard title="eGFR" emoji="🔍" data={egfrTrend} goalValue={60} color="#3b82f6" unit="mL/min" />
 
-          {/* eGFR interpretation */}
-          <div className="bg-amber-900/20 border border-amber-800/50 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-amber-300 mb-1">eGFR Stages</h3>
-            <div className="text-xs text-amber-200/80 space-y-1">
-              <p>Stage 1: ≥90 (Normal)</p>
-              <p>Stage 2: 60-89 (Mild decrease)</p>
-              <p className="font-semibold">Stage 3a: 45-59 (Mild to moderate) ← You are here (56)</p>
-              <p>Stage 3b: 30-44 (Moderate to severe)</p>
+            {/* eGFR interpretation */}
+            <div className="bg-amber-900/20 border border-amber-800/50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-amber-300 mb-1">eGFR Stages</h3>
+              <div className="text-xs text-amber-200/80 space-y-1">
+                <p className={stage === '1' ? 'font-semibold' : ''}>Stage 1: ≥90 (Normal){stage === '1' && ` ← You are here (${latestEgfr})`}</p>
+                <p className={stage === '2' ? 'font-semibold' : ''}>Stage 2: 60-89 (Mild decrease){stage === '2' && ` ← You are here (${latestEgfr})`}</p>
+                <p className={stage === '3a' ? 'font-semibold' : ''}>Stage 3a: 45-59 (Mild to moderate){stage === '3a' && ` ← You are here (${latestEgfr})`}</p>
+                <p className={stage === '3b' ? 'font-semibold' : ''}>Stage 3b: 30-44 (Moderate to severe){stage === '3b' && ` ← You are here (${latestEgfr})`}</p>
+                <p className={stage === '4' ? 'font-semibold' : ''}>Stage 4: 15-29 (Severe){stage === '4' && ` ← You are here (${latestEgfr})`}</p>
+                <p className={stage === '5' ? 'font-semibold' : ''}>Stage 5: &lt;15 (Kidney failure){stage === '5' && ` ← You are here (${latestEgfr})`}</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Other Tab */}
       {activeTab === 'other' && (

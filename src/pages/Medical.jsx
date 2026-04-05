@@ -82,78 +82,32 @@ function ProblemsTab() {
 
 // Tab 2: Medications
 function MedicationsTab() {
-  const medicationTiming = {
-    'Rosuvastatin 5 mg': { timing: 'Evening', withFood: 'N' },
-    'Ezetimibe 10 mg': { timing: 'Morning', withFood: 'Y' },
-    'GLP-1 (semaglutide or tirzepatide)': { timing: 'Weekly', withFood: 'N' },
-    'Enclomiphene': { timing: 'Morning', withFood: 'N' },
-    'Vitamin D': { timing: 'Morning', withFood: 'Y' },
-    'Fish oil (EPA/DHA)': { timing: 'Morning', withFood: 'Y' },
-    'Creatine 5 g/day': { timing: 'Anytime', withFood: 'N' },
-    'Magnesium': { timing: 'Evening', withFood: 'N' },
-    'Probiotic': { timing: 'Morning', withFood: 'N' },
-    'Novo': { timing: 'Morning', withFood: 'N' },
-  };
-
-  const allMeds = [...healthPlan.medications, ...healthPlan.supplements];
-
   return (
     <div className="space-y-4">
-      <Section title="Prescription Medications" emoji="💊" defaultOpen={true}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="border-b border-slate-700 text-slate-400">
-                <th className="text-left py-2 font-semibold">Name</th>
-                <th className="text-left py-2 font-semibold">Purpose</th>
-                <th className="text-left py-2 font-semibold">Timing</th>
-                <th className="text-left py-2 font-semibold">With Food?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {healthPlan.medications.map((med, i) => {
-                const timing = medicationTiming[med.name] || {};
-                return (
+      {(healthPlan.medSchedule || []).map(group => (
+        <Section key={group.time} title={group.label} emoji={group.emoji} defaultOpen={true}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-slate-300">
+              <thead>
+                <tr className="border-b border-slate-700 text-slate-400">
+                  <th className="text-left py-2 font-semibold">Name</th>
+                  <th className="text-left py-2 font-semibold">Purpose</th>
+                  <th className="text-left py-2 font-semibold">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.items.map((item, i) => (
                   <tr key={i} className="border-b border-slate-700 hover:bg-slate-750/50">
-                    <td className="py-3">{med.name}</td>
-                    <td className="py-3 text-slate-400">{med.why}</td>
-                    <td className="py-3">{timing.timing || '—'}</td>
-                    <td className="py-3">{timing.withFood || '—'}</td>
+                    <td className="py-3 font-medium text-white">{item.name}</td>
+                    <td className="py-3 text-slate-400">{item.notes}</td>
+                    <td className="py-3">{item.rx ? <span className="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-400">Rx</span> : <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">Supplement</span>}</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <Section title="Supplements" emoji="🥤" defaultOpen={true}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="border-b border-slate-700 text-slate-400">
-                <th className="text-left py-2 font-semibold">Name</th>
-                <th className="text-left py-2 font-semibold">Purpose</th>
-                <th className="text-left py-2 font-semibold">Timing</th>
-                <th className="text-left py-2 font-semibold">With Food?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {healthPlan.supplements.map((sup, i) => {
-                const timing = medicationTiming[sup.name] || {};
-                return (
-                  <tr key={i} className="border-b border-slate-700 hover:bg-slate-750/50">
-                    <td className="py-3">{sup.name}</td>
-                    <td className="py-3 text-slate-400">{sup.why}</td>
-                    <td className="py-3">{timing.timing || '—'}</td>
-                    <td className="py-3">{timing.withFood || '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Section>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      ))}
     </div>
   );
 }
@@ -161,14 +115,21 @@ function MedicationsTab() {
 // Tab 3: Labs
 function LabsTab() {
   const keyLabValues = [
-    { marker: 'ApoB', current: 111, goal: 70, unit: 'mg/dL', warning: true },
-    { marker: 'LDL', current: 146, goal: 70, unit: 'mg/dL', warning: true },
-    { marker: 'eGFR', current: 56, goal: 60, unit: 'mL/min', warning: true },
-    { marker: 'Creatinine', current: 1.45, goal: 1.27, unit: 'mg/dL', warning: true },
-    { marker: 'Homocysteine', current: 21.4, goal: 10, unit: 'umol/L', warning: true },
-    { marker: 'Lp(a)', current: 181.7, goal: null, unit: 'nmol/L', warning: false, note: 'genetic' },
-    { marker: 'Platelets', current: 121, goal: 150, unit: 'x10E3', warning: false },
-  ];
+    { marker: 'ApoB', goal: 70, unit: 'mg/dL' },
+    { marker: 'LDL-C', goal: 70, unit: 'mg/dL' },
+    { marker: 'eGFR', goal: 60, unit: 'mL/min' },
+    { marker: 'Creatinine', goal: 1.27, unit: 'mg/dL' },
+    { marker: 'Homocysteine', goal: 10, unit: 'umol/L' },
+    { marker: 'Lp(a)', goal: null, unit: 'nmol/L', note: 'genetic' },
+    { marker: 'Platelets', goal: 150, unit: 'x10E3' },
+  ].map(kv => {
+    const latest = getLatestValue(kv.marker);
+    return {
+      ...kv,
+      current: latest?.value ?? '—',
+      warning: latest?.flag === 'high' || latest?.flag === 'low' || latest?.flag === 'critical',
+    };
+  });
 
   const getTrendArrow = (testName) => {
     const trend = getTrend(testName);
@@ -304,6 +265,11 @@ function VaccinesTab() {
 function KidneyTab() {
   const creatinineTrend = getTrend('Creatinine');
   const egfrTrend = getTrend('eGFR');
+  const latestEgfr = getLatestValue('eGFR');
+  const latestCreat = getLatestValue('Creatinine');
+
+  const egfrVal = latestEgfr?.value;
+  const ckdStage = egfrVal >= 90 ? 'Stage 1' : egfrVal >= 60 ? 'Stage 2' : egfrVal >= 45 ? 'Stage 3a' : egfrVal >= 30 ? 'Stage 3b' : 'Stage 4+';
 
   return (
     <div className="space-y-4">
@@ -311,12 +277,12 @@ function KidneyTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="bg-slate-750 rounded-lg p-4 border border-slate-700">
             <p className="text-sm text-slate-400 mb-1">eGFR</p>
-            <p className="text-2xl font-bold text-yellow-400">56</p>
-            <p className="text-xs text-slate-500 mt-1">Stage 3a CKD</p>
+            <p className="text-2xl font-bold text-yellow-400">{latestEgfr?.value || '—'}</p>
+            <p className="text-xs text-slate-500 mt-1">{ckdStage} CKD</p>
           </div>
           <div className="bg-slate-750 rounded-lg p-4 border border-slate-700">
             <p className="text-sm text-slate-400 mb-1">Creatinine</p>
-            <p className="text-2xl font-bold text-yellow-400">1.45 mg/dL</p>
+            <p className="text-2xl font-bold text-yellow-400">{latestCreat?.value || '—'} mg/dL</p>
             <p className="text-xs text-slate-500 mt-1">Goal: &lt; 1.27</p>
           </div>
         </div>

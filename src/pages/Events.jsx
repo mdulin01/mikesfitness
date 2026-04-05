@@ -12,6 +12,8 @@ const EVENT_CATEGORIES = [
 export default function Events({ data, updateAppointment, addAppointment, deleteAppointment, ...rest }) {
   const [showAdd, setShowAdd] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [schedulingId, setSchedulingId] = useState(null);
+  const [scheduleDate, setScheduleDate] = useState('');
   const [form, setForm] = useState({ type: '', category: 'medical', doctor: '', date: '', time: '', location: '', notes: '', status: 'scheduled' });
   const todayStr = toLocalDateStr();
 
@@ -90,15 +92,25 @@ export default function Events({ data, updateAppointment, addAppointment, delete
                       'bg-purple-900/40 text-purple-400'
                     }`}>{type.category}</span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const date = prompt('Enter date (YYYY-MM-DD):');
-                      if (date) updateAppointment(appt.id, { date, status: 'scheduled' });
-                    }}
-                    className="bg-amber-600 text-white px-3 py-1 rounded-lg text-sm"
-                  >
-                    Schedule
-                  </button>
+                  {schedulingId === appt.id ? (
+                    <div className="flex items-center gap-2">
+                      <input type="date" value={scheduleDate}
+                        onChange={e => setScheduleDate(e.target.value)}
+                        className="bg-slate-700 border border-slate-600 rounded-lg px-2 py-1 text-sm text-white" />
+                      <button onClick={() => {
+                        if (scheduleDate) {
+                          updateAppointment(appt.id, { date: scheduleDate, status: 'scheduled' });
+                          setSchedulingId(null);
+                          setScheduleDate('');
+                        }
+                      }} className="bg-green-600 text-white px-2 py-1 rounded-lg text-sm">Save</button>
+                      <button onClick={() => { setSchedulingId(null); setScheduleDate(''); }}
+                        className="bg-slate-600 text-white px-2 py-1 rounded-lg text-sm">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setSchedulingId(appt.id); setScheduleDate(toLocalDateStr()); }}
+                      className="bg-amber-600 text-white px-3 py-1 rounded-lg text-sm">Schedule</button>
+                  )}
                 </div>
               </div>
             );

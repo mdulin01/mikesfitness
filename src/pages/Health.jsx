@@ -161,7 +161,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                 <div className="mt-2">
                   <div className="w-full bg-slate-700 rounded-full h-1.5">
                     <div className="bg-blue-500 rounded-full h-1.5 transition-all" style={{
-                      width: `${Math.max(0, Math.min(100, ((latestWeight.weight - goals.target) / (goals.current - goals.target)) * 100))}%`
+                      width: `${Math.max(0, Math.min(100, ((goals.current - latestWeight.weight) / (goals.current - goals.target)) * 100))}%`
                     }} />
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
@@ -182,7 +182,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                 <div className="mt-2">
                   <div className="w-full bg-slate-700 rounded-full h-1.5">
                     <div className="bg-purple-500 rounded-full h-1.5 transition-all" style={{
-                      width: `${Math.max(0, Math.min(100, ((latestWeight.bodyFat - goals.bodyFatTarget) / (goals.bodyFatCurrent - goals.bodyFatTarget)) * 100))}%`
+                      width: `${Math.max(0, Math.min(100, ((goals.bodyFatCurrent - latestWeight.bodyFat) / (goals.bodyFatCurrent - goals.bodyFatTarget)) * 100))}%`
                     }} />
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
@@ -209,7 +209,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
               <p className="text-sm text-slate-500">No lab results recorded yet</p>
             ) : (
               <div className="space-y-2">
-                {(data?.labResults || []).slice(0, 5).map(r => (
+                {(data?.labResults || []).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(r => (
                   <div key={r.id} className="flex justify-between p-2 bg-slate-700/50 rounded text-sm">
                     <span className="font-medium text-white">{r.marker}</span>
                     <span className="text-slate-400">{r.value} {r.unit} · {formatDate(r.date)}</span>
@@ -392,7 +392,7 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
               <h3 className="font-semibold text-white mb-3">Results History</h3>
               <div className="space-y-2">
-                {(data?.labResults || []).map(r => (
+                {(data?.labResults || []).sort((a, b) => b.date.localeCompare(a.date)).map(r => (
                   <div key={r.id} className="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg text-sm">
                     <div>
                       <div className="font-medium text-white">{r.marker}</div>
