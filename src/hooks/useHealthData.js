@@ -3,10 +3,58 @@ import { db } from '../firebase-config';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 const stripUndefined = (obj) => JSON.parse(JSON.stringify(obj));
 
 const DOC_ID = 'mike-health';
+
+// One-time migration: fix date keys that were stored in UTC instead of local time.
+// Between 8 PM EDT and midnight, toISOString() returned the NEXT day's date.
+// This moves mis-keyed data (2026-04-05) back to the correct date (2026-04-04).
+function migrateUTCDateKeys(snapData, docRef) {
+  const DATE_KEYED_FIELDS = ['dailyChecklist', 'medicationChecks', 'mealLog', 'fiberLog', 'fastingLog', 'exerciseLog'];
+  // Already migrated?
+  if (snapData._dateFixV1) return snapData;
+
+  const wrongDate = '2026-04-05'; // UTC date that was actually April 4 EDT
+  const correctDate = '2026-04-04';
+  const updates = { _dateFixV1: true };
+  let changed = false;
+
+  for (const field of DATE_KEYED_FIELDS) {
+    const map = snapData[field];
+    if (map && map[wrongDate] && !map[correctDate]) {
+      // Move wrongDate data to correctDate
+      const newMap = { ...map };
+      newMap[correctDate] = newMap[wrongDate];
+      delete newMap[wrongDate];
+      updates[field] = newMap;
+      changed = true;
+    }
+  }
+
+  // Also fix monthlyGoals dailyChecks
+  const mg = snapData.monthlyGoals;
+  if (mg?.['2026-04']?.dailyChecks?.[wrongDate] && !mg?.['2026-04']?.dailyChecks?.[correctDate]) {
+    const newMG = JSON.parse(JSON.stringify(mg));
+    newMG['2026-04'].dailyChecks[correctDate] = newMG['2026-04'].dailyChecks[wrongDate];
+    delete newMG['2026-04'].dailyChecks[wrongDate];
+    updates.monthlyGoals = newMG;
+    changed = true;
+  }
+
+  if (changed) {
+    console.log('[migration] Moving UTC-keyed data from', wrongDate, 'to', correctDate);
+    setDoc(docRef, stripUndefined(updates), { merge: true }).catch(console.error);
+  } else {
+    // Just persist the flag
+    setDoc(docRef, { _dateFixV1: true }, { merge: true }).catch(console.error);
+  }
+
+  // Return corrected data for immediate use
+  return { ...snapData, ...updates };
+}
 
 // Map known appointment type IDs to categories for migration
 const FITNESS_TYPE_IDS = new Set(FITNESS_EVENT_TYPES.map(t => t.id));
@@ -112,7 +160,9 @@ export const useHealthData = (user) => {
     const docRef = doc(db, COLLECTIONS.HEALTH_DATA, DOC_ID);
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        const snapData = snap.data();
+        let snapData = snap.data();
+        // Migrate UTC date keys to local date keys (one-time fix)
+        snapData = migrateUTCDateKeys(snapData, docRef);
         // Migrate appointments missing category field
         const migratedAppts = migrateAppointments(snapData.appointments || defaultData.appointments);
         // If migration changed anything, persist it
