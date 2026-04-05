@@ -16,20 +16,20 @@ export const healthPlan = {
 
   // Prescription medications only
   medications: [
-    { name: "Rosuvastatin 5 mg", why: "LDL reduction, plaque prevention", category: "cardiovascular" },
-    { name: "Ezetimibe 10 mg", why: "Additional LDL lowering", category: "cardiovascular" },
-    { name: "GLP-1 (semaglutide or tirzepatide)", why: "Weight, CV risk, inflammation", category: "metabolic" },
-    { name: "Enclomiphene", why: "Maintain testosterone, muscle mass", category: "hormonal" },
+    { name: "Rosuvastatin 5 mg", why: "LDL reduction, plaque prevention", category: "cardiovascular", timing: "evening", withFood: false, awayFromFiber: true },
+    { name: "Ezetimibe 10 mg", why: "Additional LDL lowering", category: "cardiovascular", timing: "morning", withFood: false, awayFromFiber: false },
+    { name: "GLP-1 (semaglutide or tirzepatide)", why: "Weight, CV risk, inflammation", category: "metabolic", timing: "weekly", withFood: false, awayFromFiber: false },
+    { name: "Enclomiphene", why: "Maintain testosterone, muscle mass", category: "hormonal", timing: "morning", withFood: false, awayFromFiber: false },
   ],
 
   // Supplements (separate from meds)
   supplements: [
-    { name: "Vitamin D", why: "Bone, immune" },
-    { name: "Fish oil (EPA/DHA)", why: "Triglycerides, anti-inflammatory" },
-    { name: "Creatine 5 g/day", why: "Muscle, brain" },
-    { name: "Magnesium", why: "Sleep, muscle, bone" },
-    { name: "Probiotic", why: "Gut health, Crohn's support" },
-    { name: "Novo", why: "GLP-1 support" },
+    { name: "Vitamin D", why: "Bone, immune", timing: "morning", withFood: true, awayFromFiber: false },
+    { name: "Fish oil (EPA/DHA)", why: "Triglycerides, anti-inflammatory", timing: "morning", withFood: true, awayFromFiber: false },
+    { name: "Creatine 5 g/day", why: "Muscle, brain", timing: "anytime", withFood: false, awayFromFiber: false },
+    { name: "Magnesium", why: "Sleep, muscle, bone", timing: "evening", withFood: false, awayFromFiber: false },
+    { name: "Probiotic", why: "Gut health, Crohn's support", timing: "morning", withFood: false, awayFromFiber: true },
+    { name: "Novo", why: "GLP-1 support", timing: "morning", withFood: false, awayFromFiber: false },
   ],
 
   labSchedule: {

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { getTrend } from '../data/labData';
+import { toLocalDateStr } from '../utils/dateUtils';
 
 // Reusable SVG trend chart
 function TrendChart({ data, goalValue, color, label, unit, height = 200 }) {
@@ -99,8 +100,203 @@ function ChartCard({ title, emoji, data, goalValue, color, unit }) {
   );
 }
 
+// Blood Pressure form
+function BloodPressureForm({ save }) {
+  const [date, setDate] = useState(toLocalDateStr());
+  const [systolic, setSystolic] = useState('');
+  const [diastolic, setDiastolic] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSave = () => {
+    if (!systolic || !diastolic) {
+      alert('Please enter systolic and diastolic readings');
+      return;
+    }
+    const newEntry = {
+      id: Date.now(),
+      date,
+      systolic: parseInt(systolic),
+      diastolic: parseInt(diastolic),
+      notes,
+    };
+    // Combine systolic and diastolic into value for chart display
+    const chartEntry = {
+      id: newEntry.id,
+      date,
+      value: parseInt(systolic),
+      diastolic: parseInt(diastolic),
+      notes,
+    };
+    save({ bpEntries: [...(window.__bpEntries || []), chartEntry] });
+    setDate(toLocalDateStr());
+    setSystolic('');
+    setDiastolic('');
+    setNotes('');
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-white">❤️ Log Blood Pressure</h3>
+      <div className="space-y-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
+        <div className="grid grid-cols-2 gap-2">
+          <input type="number" placeholder="Systolic" value={systolic} onChange={(e) => setSystolic(e.target.value)}
+            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+          <input type="number" placeholder="Diastolic" value={diastolic} onChange={(e) => setDiastolic(e.target.value)}
+            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        </div>
+        <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <button onClick={handleSave}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors">
+          Save Entry
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Resting Heart Rate form
+function RestingHeartRateForm({ save }) {
+  const [date, setDate] = useState(toLocalDateStr());
+  const [bpm, setBpm] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSave = () => {
+    if (!bpm) {
+      alert('Please enter BPM');
+      return;
+    }
+    const newEntry = {
+      id: Date.now(),
+      date,
+      bpm: parseInt(bpm),
+      notes,
+    };
+    save({ hrEntries: [...(window.__hrEntries || []), newEntry] });
+    setDate(toLocalDateStr());
+    setBpm('');
+    setNotes('');
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-white">💓 Log Resting Heart Rate</h3>
+      <div className="space-y-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
+        <input type="number" placeholder="BPM" value={bpm} onChange={(e) => setBpm(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <button onClick={handleSave}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors">
+          Save Entry
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Run Pace form
+function RunPaceForm({ save }) {
+  const [date, setDate] = useState(toLocalDateStr());
+  const [distance, setDistance] = useState('');
+  const [duration, setDuration] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSave = () => {
+    if (!distance || !duration) {
+      alert('Please enter distance and duration');
+      return;
+    }
+    const distNum = parseFloat(distance);
+    const durMin = parseFloat(duration);
+    const pace = (durMin / distNum).toFixed(2);
+    const newEntry = {
+      id: Date.now(),
+      date,
+      distance: distNum,
+      duration: durMin,
+      pace: parseFloat(pace),
+      notes,
+    };
+    save({ runEntries: [...(window.__runEntries || []), newEntry] });
+    setDate(toLocalDateStr());
+    setDistance('');
+    setDuration('');
+    setNotes('');
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-white">🏃 Log Run</h3>
+      <div className="space-y-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
+        <div className="grid grid-cols-2 gap-2">
+          <input type="number" placeholder="Distance (mi)" value={distance} onChange={(e) => setDistance(e.target.value)} step="0.1"
+            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+          <input type="number" placeholder="Duration (min)" value={duration} onChange={(e) => setDuration(e.target.value)} step="0.1"
+            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        </div>
+        <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <button onClick={handleSave}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors">
+          Save Entry
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// VO2 Max form
+function VO2MaxForm({ save }) {
+  const [date, setDate] = useState(toLocalDateStr());
+  const [value, setValue] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSave = () => {
+    if (!value) {
+      alert('Please enter VO2 Max value');
+      return;
+    }
+    const newEntry = {
+      id: Date.now(),
+      date,
+      value: parseFloat(value),
+      notes,
+    };
+    save({ vo2Entries: [...(window.__vo2Entries || []), newEntry] });
+    setDate(toLocalDateStr());
+    setValue('');
+    setNotes('');
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-white">💨 Log VO2 Max</h3>
+      <div className="space-y-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
+        <input type="number" placeholder="VO2 Max (ml/kg/min)" value={value} onChange={(e) => setValue(e.target.value)} step="0.1"
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500" />
+        <button onClick={handleSave}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors">
+          Save Entry
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'body', label: 'Body' },
+  { id: 'fitness', label: 'Fitness' },
   { id: 'lipids', label: 'Lipids' },
   { id: 'kidney', label: 'Kidney' },
   { id: 'other', label: 'Other' },
@@ -132,6 +328,42 @@ export default function Trends({ data, ...rest }) {
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(e => ({ date: e.date, value: parseFloat(e.waist) })),
     [data?.weightEntries]
+  );
+
+  // Blood pressure data - systolic as primary value
+  const bpData = useMemo(() =>
+    (data?.bpEntries || [])
+      .filter(e => e.systolic)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => ({ date: e.date, value: e.systolic, diastolic: e.diastolic })),
+    [data?.bpEntries]
+  );
+
+  // Resting heart rate data
+  const hrData = useMemo(() =>
+    (data?.hrEntries || [])
+      .filter(e => e.bpm)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => ({ date: e.date, value: e.bpm })),
+    [data?.hrEntries]
+  );
+
+  // Run pace data - convert to min/mile
+  const runPaceData = useMemo(() =>
+    (data?.runEntries || [])
+      .filter(e => e.pace)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => ({ date: e.date, value: e.pace })),
+    [data?.runEntries]
+  );
+
+  // VO2 Max data
+  const vo2Data = useMemo(() =>
+    (data?.vo2Entries || [])
+      .filter(e => e.value)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => ({ date: e.date, value: e.value })),
+    [data?.vo2Entries]
   );
 
   // Lab trends
@@ -168,6 +400,20 @@ export default function Trends({ data, ...rest }) {
           <ChartCard title="Weight" emoji="⚖️" data={weightData} goalValue={185} color="#3b82f6" unit="lbs" />
           <ChartCard title="Body Fat %" emoji="📐" data={bodyFatData} goalValue={20} color="#f59e0b" unit="%" />
           <ChartCard title="Waist" emoji="📏" data={waistData} goalValue={38} color="#8b5cf6" unit="in" />
+          <ChartCard title="Blood Pressure (Systolic)" emoji="❤️" data={bpData} goalValue={120} color="#ec4899" unit="mmHg" />
+          <BloodPressureForm save={rest?.save || (() => {})} />
+          <ChartCard title="Resting Heart Rate" emoji="💓" data={hrData} goalValue={60} color="#f97316" unit="bpm" />
+          <RestingHeartRateForm save={rest?.save || (() => {})} />
+        </div>
+      )}
+
+      {/* Fitness Tab */}
+      {activeTab === 'fitness' && (
+        <div className="space-y-4">
+          <ChartCard title="Run Pace" emoji="🏃" data={runPaceData} goalValue={9.0} color="#10b981" unit="min/mile" />
+          <RunPaceForm save={rest?.save || (() => {})} />
+          <ChartCard title="VO2 Max" emoji="💨" data={vo2Data} goalValue={40} color="#06b6d4" unit="ml/kg/min" />
+          <VO2MaxForm save={rest?.save || (() => {})} />
         </div>
       )}
 

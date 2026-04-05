@@ -9,6 +9,8 @@ import Health from './pages/Health';
 import Events from './pages/Events';
 import Nutrition from './pages/Nutrition';
 import Trends from './pages/Trends';
+import Medical from './pages/Medical';
+import WeeklyReview from './pages/WeeklyReview';
 import Plan from './pages/Plan';
 
 export default function App() {
@@ -60,6 +62,10 @@ export default function App() {
         return <Events {...healthData} />;
       case 'trends':
         return <Trends {...healthData} />;
+      case 'medical':
+        return <Medical {...healthData} />;
+      case 'review':
+        return <WeeklyReview {...healthData} />;
       case 'plan':
         return <Plan />;
       default:
@@ -72,7 +78,7 @@ export default function App() {
       <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
       {renderSection()}
       <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-        Made by Mike Dulin, MD · Build 4
+        Made by Mike Dulin, MD · Build 5
       </footer>
     </div>
   );

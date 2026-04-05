@@ -7,16 +7,30 @@ import { toLocalDateStr } from '../utils/dateUtils';
 const today = () => toLocalDateStr();
 const dayOfWeek = () => new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-const DEFAULT_DAILY_ITEMS = [
-  { key: 'move', label: 'Move', emoji: '🏃' },
-  { key: 'mobility', label: '10 min mobility', emoji: '🧘' },
-  { key: 'water', label: '3L water', emoji: '💧' },
-  { key: 'sleep', label: '7+ hours sleep', emoji: '😴' },
-  { key: 'social', label: 'Social', emoji: '👥' },
-  { key: 'cognitive', label: 'Cognitive', emoji: '🧠' },
-  { key: 'no-alcohol', label: 'No Alcohol', emoji: '🚫🍺' },
-  { key: 'no-sweets', label: 'No Sweets', emoji: '🚫🍰' },
-];
+// Habits grouped by medical priority
+const HABIT_GROUPS = {
+  critical: [
+    { key: 'workout', label: 'Exercise', emoji: '💪' },
+    { key: 'sleep', label: '7+ hours sleep', emoji: '😴' },
+    { key: 'meds', label: 'All meds taken', emoji: '💊' },
+  ],
+  important: [
+    { key: 'move', label: 'Move / Steps', emoji: '🏃' },
+    { key: 'water', label: '3L water', emoji: '💧' },
+    { key: 'mobility', label: '10 min mobility', emoji: '🧘' },
+  ],
+  optional: [
+    { key: 'social', label: 'Social', emoji: '👥' },
+    { key: 'cognitive', label: 'Cognitive', emoji: '🧠' },
+    { key: 'no-alcohol', label: 'No Alcohol', emoji: '🚫🍺' },
+    { key: 'no-sweets', label: 'No Sweets', emoji: '🚫🍰' },
+  ],
+};
+
+const ALL_HABIT_ITEMS = [...HABIT_GROUPS.critical, ...HABIT_GROUPS.important, ...HABIT_GROUPS.optional];
+
+// Keep for backward compat with customDailyItems
+const DEFAULT_DAILY_ITEMS = ALL_HABIT_ITEMS;
 
 // Collapsible section wrapper
 function Section({ title, emoji, defaultOpen = true, rightAction, children }) {
@@ -135,6 +149,49 @@ export default function Dashboard({
   const startEditChecklist = () => { setEditItems([...dailyItems]); setEditingChecklist(true); };
   const saveChecklist = () => { updateDailyItems(editItems.filter(i => i.label.trim())); setEditingChecklist(false); };
 
+  // ===== HEALTH SCORE (0-100) =====
+  const healthScore = useMemo(() => {
+    // Exercise (20 pts): did you work out today?
+    const workoutDone = completions[todayDow] || dailyChecks['workout'] || false;
+    const exercisePts = workoutDone ? 20 : (dailyChecks['move'] ? 10 : 0);
+
+    // Nutrition (20 pts): meals logged + fiber
+    const mealPts = Math.min(10, todayMeals.length * 5);
+    const fiberPts = (fiberMorning ? 5 : 0) + (fiberEvening ? 5 : 0);
+    const nutritionPts = mealPts + fiberPts;
+
+    // Sleep (20 pts): sleep habit checked
+    const sleepPts = dailyChecks['sleep'] ? 20 : 0;
+
+    // Med adherence (20 pts): proportional to meds+supplements taken
+    const totalMeds = healthPlan.medications.length + healthPlan.supplements.length;
+    const takenMeds = medsTakenCount + supsTakenCount;
+    const medPts = totalMeds > 0 ? Math.round((takenMeds / totalMeds) * 20) : 0;
+
+    // Weight/Labs trend (20 pts): based on weight trend toward goal
+    const weights = data?.weightEntries || [];
+    let trendPts = 10; // default neutral
+    if (weights.length >= 2) {
+      const sorted = [...weights].sort((a, b) => b.date.localeCompare(a.date));
+      const latest = sorted[0].weight;
+      const target = healthPlan.weightGoals?.target || 185;
+      const prev = sorted[1].weight;
+      // Moving toward target = good
+      if (Math.abs(latest - target) < Math.abs(prev - target)) trendPts = 20;
+      else if (Math.abs(latest - target) === Math.abs(prev - target)) trendPts = 10;
+      else trendPts = 5;
+    }
+
+    return {
+      total: exercisePts + nutritionPts + sleepPts + medPts + trendPts,
+      exercise: exercisePts,
+      nutrition: nutritionPts,
+      sleep: sleepPts,
+      meds: medPts,
+      trend: trendPts,
+    };
+  }, [completions, todayDow, dailyChecks, todayMeals, fiberMorning, fiberEvening, medsTakenCount, supsTakenCount, data?.weightEntries]);
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-5 pb-24 md:pb-6">
       {/* Greeting + Streak */}
@@ -151,6 +208,39 @@ export default function Dashboard({
             <div className="text-xs text-orange-100">day streak</div>
           </div>
         )}
+      </div>
+
+      {/* Health Score */}
+      <div className={`rounded-xl border p-4 ${
+        healthScore.total >= 80 ? 'bg-gradient-to-r from-green-900/50 to-emerald-900/50 border-green-700/50' :
+        healthScore.total >= 50 ? 'bg-gradient-to-r from-yellow-900/50 to-amber-900/50 border-yellow-700/50' :
+        'bg-gradient-to-r from-red-900/50 to-rose-900/50 border-red-700/50'
+      }`}>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="text-3xl font-bold text-white">{healthScore.total}<span className="text-lg text-slate-400">/100</span></div>
+            <div className="text-xs text-slate-400">Today's Health Score</div>
+          </div>
+          <div className="text-4xl">{healthScore.total >= 80 ? '🟢' : healthScore.total >= 50 ? '🟡' : '🔴'}</div>
+        </div>
+        <div className="grid grid-cols-5 gap-1 text-center text-xs">
+          {[
+            { label: 'Exercise', pts: healthScore.exercise, max: 20 },
+            { label: 'Nutrition', pts: healthScore.nutrition, max: 20 },
+            { label: 'Sleep', pts: healthScore.sleep, max: 20 },
+            { label: 'Meds', pts: healthScore.meds, max: 20 },
+            { label: 'Trend', pts: healthScore.trend, max: 20 },
+          ].map(s => (
+            <div key={s.label}>
+              <div className="h-1.5 bg-slate-700 rounded-full mb-1">
+                <div className={`h-full rounded-full ${s.pts >= s.max * 0.8 ? 'bg-green-500' : s.pts >= s.max * 0.4 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                  style={{ width: `${(s.pts / s.max) * 100}%` }} />
+              </div>
+              <span className="text-slate-500">{s.label}</span>
+              <div className="text-slate-300 font-medium">{s.pts}/{s.max}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Motivational Quote */}
@@ -228,29 +318,76 @@ export default function Dashboard({
         </Section>
       )}
 
-      {/* Today's Healthy Habits */}
+      {/* Today's Healthy Habits — Categorized */}
       <div className="bg-slate-800 rounded-xl border border-slate-700">
         <div className="flex items-center justify-between p-4">
-          <h2 className="font-semibold text-white">✅ Today's Healthy Habits</h2>
+          <h2 className="font-semibold text-white">✅ Today's Habits</h2>
           <button onClick={startEditChecklist} className="text-xs text-blue-400 hover:underline">Edit ✏️</button>
         </div>
-        <div className="px-4 pb-4 -mt-1">
-          <div className="space-y-2">
-            {dailyItems.map(item => (
-              <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                  dailyChecks[item.key] ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
-                }`}>
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                  dailyChecks[item.key] ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                }`}>{dailyChecks[item.key] && <span className="text-white text-xs">✓</span>}</div>
-                <span className={`text-sm ${dailyChecks[item.key] ? 'text-green-400 line-through' : 'text-slate-300'}`}>{item.emoji} {item.label}</span>
-              </button>
-            ))}
+        <div className="px-4 pb-4 -mt-1 space-y-3">
+          {/* Critical — large, red border if missed */}
+          <div>
+            <div className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-1.5">🚨 Critical</div>
+            <div className="space-y-1.5">
+              {HABIT_GROUPS.critical.map(item => {
+                const done = dailyChecks[item.key];
+                return (
+                  <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
+                    className={`w-full flex items-center gap-3 p-3.5 rounded-lg transition-all text-base ${
+                      done ? 'bg-green-900/30 border border-green-700' : 'bg-red-900/20 border border-red-700/60 hover:bg-red-900/30'
+                    }`}>
+                    <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      done ? 'border-green-500 bg-green-500' : 'border-red-500'
+                    }`}>{done && <span className="text-white text-sm">✓</span>}</div>
+                    <span className={`font-medium ${done ? 'text-green-400 line-through' : 'text-white'}`}>{item.emoji} {item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* Important */}
+          <div>
+            <div className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-1.5">⭐ Important</div>
+            <div className="space-y-1">
+              {HABIT_GROUPS.important.map(item => {
+                const done = dailyChecks[item.key];
+                return (
+                  <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                      done ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700'
+                    }`}>
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      done ? 'border-green-500 bg-green-500' : 'border-yellow-500'
+                    }`}>{done && <span className="text-white text-xs">✓</span>}</div>
+                    <span className={`text-sm ${done ? 'text-green-400 line-through' : 'text-slate-300'}`}>{item.emoji} {item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* Optional */}
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Optional</div>
+            <div className="space-y-1">
+              {HABIT_GROUPS.optional.map(item => {
+                const done = dailyChecks[item.key];
+                return (
+                  <button key={item.key} onClick={() => toggleDailyItem(todayStr, item.key)}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${
+                      done ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/30 border border-slate-700 hover:bg-slate-700/50'
+                    }`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      done ? 'border-green-500 bg-green-500' : 'border-slate-600'
+                    }`}>{done && <span className="text-white text-[10px]">✓</span>}</div>
+                    <span className={`text-sm ${done ? 'text-green-400 line-through' : 'text-slate-400'}`}>{item.emoji} {item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {dailyProgress === dailyTotal && dailyTotal > 0 && (
-            <div className="mt-3 text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
-              <span className="text-green-400 text-sm font-medium">🎉 All habits completed! Great job today!</span>
+            <div className="text-center p-2 bg-green-900/30 border border-green-700 rounded-lg">
+              <span className="text-green-400 text-sm font-medium">🎉 All habits completed!</span>
             </div>
           )}
         </div>
@@ -285,8 +422,13 @@ export default function Dashboard({
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                       medChecks[med.name] ? 'border-green-500 bg-green-500' : 'border-slate-500'
                     }`}>{medChecks[med.name] && <span className="text-white text-[10px]">✓</span>}</div>
-                    <span className={medChecks[med.name] ? 'line-through' : ''}>{med.name}</span>
-                    <span className="text-xs text-slate-600 ml-auto">{med.category}</span>
+                    <span className={`flex-1 text-left ${medChecks[med.name] ? 'line-through' : ''}`}>{med.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
+                      med.timing === 'morning' ? 'bg-amber-900/50 text-amber-400' :
+                      med.timing === 'evening' ? 'bg-indigo-900/50 text-indigo-400' :
+                      'bg-slate-600 text-slate-400'
+                    }`}>{med.timing === 'morning' ? '☀️ AM' : med.timing === 'evening' ? '🌙 PM' : med.timing === 'weekly' ? '📅 Wk' : '⏰'}</span>
+                    {med.awayFromFiber && <span className="text-[10px] px-1 py-0.5 rounded-full bg-red-900/50 text-red-400">⚠️ no fiber</span>}
                   </button>
                 ))}
               </div>
@@ -365,7 +507,14 @@ export default function Dashboard({
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                       medChecks[sup.name] ? 'border-green-500 bg-green-500' : 'border-slate-500'
                     }`}>{medChecks[sup.name] && <span className="text-white text-[10px]">✓</span>}</div>
-                    <span className={medChecks[sup.name] ? 'line-through' : ''}>{sup.name}</span>
+                    <span className={`flex-1 text-left ${medChecks[sup.name] ? 'line-through' : ''}`}>{sup.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
+                      sup.timing === 'morning' ? 'bg-amber-900/50 text-amber-400' :
+                      sup.timing === 'evening' ? 'bg-indigo-900/50 text-indigo-400' :
+                      'bg-slate-600 text-slate-400'
+                    }`}>{sup.timing === 'morning' ? '☀️ AM' : sup.timing === 'evening' ? '🌙 PM' : '⏰'}</span>
+                    {sup.withFood && <span className="text-[10px] px-1 py-0.5 rounded-full bg-amber-900/50 text-amber-400">🍽️</span>}
+                    {sup.awayFromFiber && <span className="text-[10px] px-1 py-0.5 rounded-full bg-red-900/50 text-red-400">⚠️ no fiber</span>}
                   </button>
                 ))}
               </div>
