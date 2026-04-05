@@ -257,11 +257,11 @@ export default function Dashboard({
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" strokeWidth="3" />
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="#3b82f6" strokeWidth="3"
-                strokeDasharray={`${(daysCompleted / 7) * 100} 100`} strokeLinecap="round" />
+                strokeDasharray={`${(([dailyChecks['workout'], dailyChecks['move'], dailyChecks['mobility']].filter(Boolean).length) / 3) * 100} 100`} strokeLinecap="round" />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-blue-400">{daysCompleted}/7</div>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-blue-400">{[dailyChecks['workout'], dailyChecks['move'], dailyChecks['mobility']].filter(Boolean).length}/3</div>
           </div>
-          <div className="text-xs text-slate-400">Workout</div>
+          <div className="text-xs text-slate-400">Move</div>
         </div>
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 text-center">
           <div className="relative w-14 h-14 mx-auto mb-1">
