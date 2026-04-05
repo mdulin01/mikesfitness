@@ -46,11 +46,47 @@ export const healthPlan = {
 
   weightGoals: {
     current: 192,
-    target: 182,
+    target: 185,
     bodyFatCurrent: 23,
     bodyFatTarget: 20,
     waistTarget: "< 38 inches",
   },
+
+  nutritionTargets: {
+    protein: 120,
+    fiber: 30,
+    plants: 5,
+    water: 80,
+    alcohol: 1,
+    sugar: 'low',
+  },
+
+  exerciseTargets: {
+    cardioMinutes: 150,
+    strengthDays: 3,
+    zone2Minutes: 90,
+  },
+
+  dailyRules: [
+    'Eat Mediterranean', '120g protein', '30g fiber',
+    'Exercise daily', 'Sleep 7+ hrs', 'Minimal alcohol',
+    'Take all meds', 'Hydrate 80+ oz',
+  ],
+
+  topRisks: [
+    { risk: 'Heart disease', why: 'High ApoB, Lp(a), homocysteine' },
+    { risk: 'Kidney disease', why: 'eGFR 56, creatinine 1.45' },
+    { risk: 'Muscle loss', why: 'Age-related sarcopenia' },
+    { risk: "Crohn's complications", why: 'Ongoing management' },
+  ],
+
+  topTargets: [
+    { label: 'Weight', value: '185 lbs' },
+    { label: 'ApoB', value: '< 70 mg/dL' },
+    { label: 'Homocysteine', value: '< 10 umol/L' },
+    { label: 'Lift', value: '3x/week' },
+    { label: 'VO2 max', value: 'Top 25%' },
+  ],
 
   sleepGoals: {
     hours: 7,

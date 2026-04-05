@@ -8,6 +8,7 @@ import Training from './pages/Training';
 import Health from './pages/Health';
 import Events from './pages/Events';
 import Nutrition from './pages/Nutrition';
+import Trends from './pages/Trends';
 import Plan from './pages/Plan';
 
 export default function App() {
@@ -57,6 +58,8 @@ export default function App() {
         return <Health {...healthData} />;
       case 'events':
         return <Events {...healthData} />;
+      case 'trends':
+        return <Trends {...healthData} />;
       case 'plan':
         return <Plan />;
       default:
