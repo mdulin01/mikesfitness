@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
-import { getLatestValue } from '../data/labData';
+import { getLatestValue, getTrend } from '../data/labData';
+import { imagingHistory, colonoscopyTimeline } from '../data/imagingData';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
 import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
 
@@ -46,71 +47,109 @@ function Section({ title, emoji, defaultOpen = true, children }) {
 }
 
 /* ─── System status helpers ─── */
+const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+
 function systemStatus(key, data, dailyChecks, medChecks) {
-  // Returns { status: 'green'|'yellow'|'red', label }
+  // Returns { status: 'green'|'yellow'|'red', label, detail }
   switch (key) {
     case 'cardio': {
       const apoB = getLatestValue('ApoB');
       const ldl = getLatestValue('LDL-C') || getLatestValue('LDL');
       const val = apoB?.value ?? ldl?.value ?? null;
-      if (val === null) return { status: 'yellow', label: 'No data' };
-      if (apoB && apoB.value < 80) return { status: 'green', label: `ApoB ${apoB.value}` };
-      if (apoB && apoB.value < 100) return { status: 'yellow', label: `ApoB ${apoB.value}` };
-      return { status: 'red', label: `ApoB ${apoB?.value || '?'}` };
+      const ccta = imagingHistory.find(i => i.name === 'CT Coronary Angiogram with Plaque Analysis');
+      const cctaLine = ccta ? `CCTA: Zero plaque · ${fmtDate(ccta.date)}` : '';
+      if (val === null) return { status: 'yellow', label: 'No data', detail: cctaLine || 'No lab data' };
+      const line = apoB ? `ApoB ${apoB.value} mg/dL · ${fmtDate(apoB.date)} · Goal <70` : `LDL ${ldl.value} · ${fmtDate(ldl.date)}`;
+      const detail = [line, cctaLine].filter(Boolean).join('\n');
+      if (apoB && apoB.value < 80) return { status: 'green', label: `ApoB ${apoB.value}`, detail };
+      if (apoB && apoB.value < 100) return { status: 'yellow', label: `ApoB ${apoB.value}`, detail };
+      return { status: 'red', label: `ApoB ${apoB?.value || '?'}`, detail };
     }
     case 'kidney': {
       const egfr = getLatestValue('eGFR');
-      if (!egfr) return { status: 'yellow', label: 'No data' };
-      if (egfr.value >= 90) return { status: 'green', label: `eGFR ${egfr.value}` };
-      if (egfr.value >= 60) return { status: 'yellow', label: `eGFR ${egfr.value}` };
-      return { status: 'red', label: `eGFR ${egfr.value}` };
+      const mri = imagingHistory.find(i => i.category === 'renal' && i.type === 'imaging');
+      const mriLine = mri ? `MRI: ${mri.summary.split('.')[0]} · ${fmtDate(mri.date)}` : '';
+      if (!egfr) return { status: 'yellow', label: 'No data', detail: mriLine || 'No eGFR data' };
+      const line = `eGFR ${egfr.value} · ${fmtDate(egfr.date)} · Goal ≥90`;
+      const trend = getTrend('eGFR');
+      const trendLine = trend && trend.length >= 2 ? `Trend: ${trend[trend.length - 2].value} → ${trend[trend.length - 1].value}` : '';
+      const detail = [line, trendLine, mriLine].filter(Boolean).join('\n');
+      if (egfr.value >= 90) return { status: 'green', label: `eGFR ${egfr.value}`, detail };
+      if (egfr.value >= 60) return { status: 'yellow', label: `eGFR ${egfr.value}`, detail };
+      return { status: 'red', label: `eGFR ${egfr.value}`, detail };
     }
     case 'metabolic': {
       const a1c = getLatestValue('HbA1c');
       const glucose = getLatestValue('Glucose');
       if (a1c) {
-        if (a1c.value < 5.7) return { status: 'green', label: `A1c ${a1c.value}` };
-        if (a1c.value < 6.5) return { status: 'yellow', label: `A1c ${a1c.value}` };
-        return { status: 'red', label: `A1c ${a1c.value}` };
+        const detail = `HbA1c ${a1c.value}% · ${fmtDate(a1c.date)} · Goal <5.7`;
+        if (a1c.value < 5.7) return { status: 'green', label: `A1c ${a1c.value}`, detail };
+        if (a1c.value < 6.5) return { status: 'yellow', label: `A1c ${a1c.value}`, detail };
+        return { status: 'red', label: `A1c ${a1c.value}`, detail };
       }
       if (glucose) {
-        if (glucose.value < 100) return { status: 'green', label: `Glu ${glucose.value}` };
-        return { status: 'yellow', label: `Glu ${glucose.value}` };
+        const detail = `Glucose ${glucose.value} mg/dL · ${fmtDate(glucose.date)} · Goal <100`;
+        if (glucose.value < 100) return { status: 'green', label: `Glu ${glucose.value}`, detail };
+        return { status: 'yellow', label: `Glu ${glucose.value}`, detail };
       }
-      return { status: 'yellow', label: 'No data' };
+      return { status: 'yellow', label: 'No data', detail: 'No A1c or glucose data' };
     }
     case 'brain': {
       const cognitive = dailyChecks['cognitive'];
       const sleep = dailyChecks['sleep'];
-      if (cognitive && sleep) return { status: 'green', label: 'Active' };
-      if (sleep || cognitive) return { status: 'yellow', label: 'Partial' };
-      return { status: 'red', label: 'Inactive' };
+      const detail = `Today: ${cognitive ? '✓ Cognitive' : '✗ Cognitive'}, ${sleep ? '✓ Sleep' : '✗ Sleep'}`;
+      if (cognitive && sleep) return { status: 'green', label: 'Active', detail };
+      if (sleep || cognitive) return { status: 'yellow', label: 'Partial', detail };
+      return { status: 'red', label: 'Inactive', detail };
     }
     case 'muscle': {
       const weights = data?.weightEntries || [];
       const latest = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
       const bf = latest?.bodyFat;
-      if (bf && bf < 20) return { status: 'green', label: `${bf}% BF` };
-      if (bf && bf < 25) return { status: 'yellow', label: `${bf}% BF` };
-      if (bf) return { status: 'red', label: `${bf}% BF` };
-      return { status: 'yellow', label: 'No data' };
+      const wt = latest?.weight;
+      const wTarget = healthPlan.weightGoals?.target || 185;
+      const lines = [];
+      if (wt) lines.push(`Weight ${wt} lbs · ${fmtDate(latest.date)} · Goal ${wTarget}`);
+      if (bf) lines.push(`Body fat ${bf}% · Goal <18%`);
+      const detail = lines.length ? lines.join('\n') : 'No data';
+      if (bf && bf < 20) return { status: 'green', label: `${bf}% BF`, detail };
+      if (bf && bf < 25) return { status: 'yellow', label: `${bf}% BF`, detail };
+      if (bf) return { status: 'red', label: `${bf}% BF`, detail };
+      return { status: 'yellow', label: 'No data', detail };
     }
     case 'gut': {
       const calprotectin = getLatestValue('Fecal Calprotectin');
-      if (calprotectin) {
-        if (calprotectin.value < 50) return { status: 'green', label: `Cal ${calprotectin.value}` };
-        if (calprotectin.value < 200) return { status: 'yellow', label: `Cal ${calprotectin.value}` };
-        return { status: 'red', label: `Cal ${calprotectin.value}` };
+      const latestColonoscopy = colonoscopyTimeline.length > 0 ? colonoscopyTimeline[colonoscopyTimeline.length - 1] : null;
+      const lines = [];
+      if (calprotectin) lines.push(`Calprotectin ${calprotectin.value} µg/g · ${fmtDate(calprotectin.date)} · Goal <50`);
+      if (latestColonoscopy) lines.push(`Colonoscopy: ${latestColonoscopy.finding} · ${fmtDate(latestColonoscopy.date)} · Dr. ${latestColonoscopy.provider}`);
+      const nextColonoscopy = imagingHistory.find(i => i.category === 'gi' && i.date === '2026-03-02');
+      if (nextColonoscopy?.details?.recommendations) {
+        const repeatRec = nextColonoscopy.details.recommendations.find(r => r.includes('Repeat'));
+        if (repeatRec) lines.push(`Next: ${repeatRec}`);
       }
-      return { status: 'yellow', label: 'No data' };
+      const detail = lines.length ? lines.join('\n') : 'No data';
+      // Status: yellow if active ulcers found on colonoscopy, even if calprotectin is normal
+      const hasActiveUlcers = latestColonoscopy && latestColonoscopy.finding.toLowerCase().includes('erosion');
+      if (hasActiveUlcers) {
+        const calLabel = calprotectin ? `Cal ${calprotectin.value}` : '';
+        return { status: 'yellow', label: calLabel || '2 ulcers', detail };
+      }
+      if (calprotectin) {
+        if (calprotectin.value < 50) return { status: 'green', label: `Cal ${calprotectin.value}`, detail };
+        if (calprotectin.value < 200) return { status: 'yellow', label: `Cal ${calprotectin.value}`, detail };
+        return { status: 'red', label: `Cal ${calprotectin.value}`, detail };
+      }
+      return { status: 'yellow', label: 'No data', detail };
     }
     case 'sleep': {
       const slept = dailyChecks['sleep'];
-      if (slept) return { status: 'green', label: '7+ hrs' };
-      return { status: 'red', label: 'Not logged' };
+      const detail = slept ? 'Logged 7+ hours today' : 'Not yet logged today';
+      if (slept) return { status: 'green', label: '7+ hrs', detail };
+      return { status: 'red', label: 'Not logged', detail };
     }
     default:
-      return { status: 'yellow', label: '—' };
+      return { status: 'yellow', label: '—', detail: '' };
   }
 }
 
@@ -141,6 +180,9 @@ export default function Dashboard({
   // Fasting data
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
   const todayFasting = data?.fastingLog?.[todayStr] || {};
+
+  // Expanded system tooltip
+  const [expandedSystem, setExpandedSystem] = useState(null);
 
   // Exercise log
   const [showExerciseLog, setShowExerciseLog] = useState(false);
@@ -358,8 +400,11 @@ export default function Dashboard({
         <div className="grid grid-cols-7 gap-1.5">
           {systems.map(sys => {
             const c = STATUS_COLORS[sys.status];
+            const isExpanded = expandedSystem === sys.key;
             return (
-              <div key={sys.key} className={`${c.bg} border ${c.border} rounded-lg p-1.5 text-center`}>
+              <div key={sys.key}
+                onClick={() => setExpandedSystem(isExpanded ? null : sys.key)}
+                className={`${c.bg} border ${c.border} rounded-lg p-1.5 text-center cursor-pointer transition-all ${isExpanded ? 'ring-1 ring-white/30' : ''}`}>
                 <div className="flex items-center justify-center gap-1">
                   <div className={`w-2 h-2 rounded-full ${c.dot}`} />
                   <span className="text-xs font-medium text-slate-300">{sys.emoji}</span>
@@ -369,6 +414,23 @@ export default function Dashboard({
             );
           })}
         </div>
+        {/* System detail tooltip */}
+        {expandedSystem && (() => {
+          const sys = systems.find(s => s.key === expandedSystem);
+          if (!sys?.detail) return null;
+          const c = STATUS_COLORS[sys.status];
+          return (
+            <div className={`${c.bg} border ${c.border} rounded-lg px-3 py-2 mt-1.5`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-white">{sys.emoji} {sys.label}</span>
+                <button onClick={(e) => { e.stopPropagation(); setExpandedSystem(null); }} className="text-slate-500 text-xs hover:text-slate-300">✕</button>
+              </div>
+              {sys.detail.split('\n').map((line, i) => (
+                <div key={i} className="text-[11px] text-slate-300 leading-relaxed">{line}</div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Key Numbers */}
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs">
