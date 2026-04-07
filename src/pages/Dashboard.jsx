@@ -165,14 +165,20 @@ export default function Dashboard({
   getMonthKey,
   updateDailyItems, ...rest
 }) {
+  // Date navigation — allows logging for yesterday or past dates
+  const [dateOffset, setDateOffset] = useState(0);
+  const selectedDateStr = dateOffset === 0 ? today() : offsetDateStr(today(), dateOffset);
+  const isToday = dateOffset === 0;
+  const selectedDow = new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
-  const todayStr = today();
+  const todayStr = selectedDateStr;
   const dailyChecks = data?.dailyChecklist?.[todayStr] || {};
   const medChecks = data?.medicationChecks?.[todayStr] || {};
   const todayMeals = data?.mealLog?.[todayStr] || [];
   const daysCompleted = Object.values(completions).filter(Boolean).length;
-  const todayDow = dayOfWeek();
+  const todayDow = selectedDow;
   const todayPlan = exercisePlan.weeklySchedule.find(d => d.day.toLowerCase() === todayDow);
 
   const dailyItems = data?.customDailyItems || DEFAULT_DAILY_ITEMS;
@@ -372,7 +378,7 @@ export default function Dashboard({
     'from-red-900/40 to-rose-900/40 border-red-700/50';
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 pb-24 md:pb-6">
+    <div className="max-w-4xl mx-auto px-3 py-4 md:p-6 space-y-4 pb-24 md:pb-6">
 
       {/* ══════ HEALTH OS HEADER ══════ */}
       <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg(scores.overall)}`}>
@@ -397,19 +403,19 @@ export default function Dashboard({
         </div>
 
         {/* Systems row */}
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-7 gap-1">
           {systems.map(sys => {
             const c = STATUS_COLORS[sys.status];
             const isExpanded = expandedSystem === sys.key;
             return (
               <div key={sys.key}
                 onClick={() => setExpandedSystem(isExpanded ? null : sys.key)}
-                className={`${c.bg} border ${c.border} rounded-lg p-1.5 text-center cursor-pointer transition-all ${isExpanded ? 'ring-1 ring-white/30' : ''}`}>
-                <div className="flex items-center justify-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${c.dot}`} />
+                className={`${c.bg} border ${c.border} rounded-lg p-1 text-center cursor-pointer transition-all ${isExpanded ? 'ring-1 ring-white/30' : ''}`}>
+                <div className="flex items-center justify-center gap-0.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
                   <span className="text-xs font-medium text-slate-300">{sys.emoji}</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{sys.label}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight truncate">{sys.label}</div>
               </div>
             );
           })}
@@ -444,7 +450,7 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* ══════ TODAY'S CHECKLIST (compact) ══════ */}
+      {/* ══════ DAILY CHECKLIST (compact) ══════ */}
       <div className="flex gap-2">
         {todayItems.map(item => (
           <div key={item.key} className={`flex-1 py-2 rounded-lg text-center text-xs font-medium border ${
@@ -455,16 +461,28 @@ export default function Dashboard({
         ))}
       </div>
 
-      {/* ══════ STREAK + DATE ══════ */}
+      {/* ══════ DATE NAVIGATOR + STREAK ══════ */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-        {streak > 0 && (
+        <button onClick={() => setDateOffset(o => o - 1)} className="p-2 text-slate-400 hover:text-white transition-colors text-lg">←</button>
+        <div className="text-center flex-1">
+          <p className="text-sm font-medium text-white">
+            {new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+          {!isToday && (
+            <button onClick={() => setDateOffset(0)} className="text-xs text-blue-400 hover:underline mt-0.5">Back to Today</button>
+          )}
+        </div>
+        <button onClick={() => setDateOffset(o => Math.min(o + 1, 0))} disabled={isToday}
+          className={`p-2 text-lg transition-colors ${isToday ? 'text-slate-700' : 'text-slate-400 hover:text-white'}`}>→</button>
+      </div>
+      {streak > 0 && (
+        <div className="flex justify-center">
           <div className="flex items-center gap-1.5 bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 rounded-full">
             <span className="text-sm">🔥</span>
             <span className="text-sm font-bold text-white">{streak} day streak</span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Quote */}
       <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-800/30 rounded-xl px-4 py-3">
@@ -476,7 +494,7 @@ export default function Dashboard({
 
       {/* ══════ TODAY'S WORKOUT ══════ */}
       {todayPlan && (
-        <Section title="Today's Workout" emoji={todayPlan.emoji} defaultOpen={true}>
+        <Section title={isToday ? "Today's Workout" : `${new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })} Workout`} emoji={todayPlan.emoji} defaultOpen={true}>
           <div className="flex items-center gap-3 mb-3">
             <div className="flex-1">
               <div className="font-medium text-white">{todayPlan.exercise}</div>
@@ -548,7 +566,7 @@ export default function Dashboard({
       {/* ══════ TODAY'S HABITS ══════ */}
       <div className="bg-slate-800 rounded-xl border border-slate-700">
         <div className="flex items-center justify-between p-4">
-          <h2 className="font-semibold text-white">✅ Today's Habits</h2>
+          <h2 className="font-semibold text-white">✅ {isToday ? "Today's" : new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + "'s"} Habits</h2>
           <button onClick={startEditChecklist} className="text-xs text-blue-400 hover:underline">Edit ✏️</button>
         </div>
         <div className="px-4 pb-4 -mt-1 space-y-3">
@@ -671,7 +689,7 @@ export default function Dashboard({
       </Section>
 
       {/* ══════ NUTRITION SUMMARY ══════ */}
-      <Section title="Today's Nutrition" emoji="🍽️" defaultOpen={true}>
+      <Section title={isToday ? "Today's Nutrition" : `${new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} Nutrition`} emoji="🍽️" defaultOpen={true}>
         <div className="flex justify-end -mt-2 mb-2">
           <button onClick={() => setActiveSection('nutrition')} className="text-sm text-blue-400 hover:underline">Log meals →</button>
         </div>

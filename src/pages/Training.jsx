@@ -80,14 +80,26 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
     if (!activityForm.type) return;
     const existing = currentWorkoutDetails[dayKey] || [];
     const activityId = Date.now();
+    const dist = activityForm.distance ? parseFloat(activityForm.distance) : null;
+    const dur = activityForm.duration ? parseFloat(activityForm.duration) : null;
+    const pace = (activityForm.type === 'run' && dist && dur) ? parseFloat((dur / dist).toFixed(2)) : null;
     const updated = [...existing, {
       ...activityForm,
       id: activityId,
-      distance: activityForm.distance || null,
-      duration: activityForm.duration || null,
+      distance: dist,
+      duration: dur,
+      pace,
       effort: null, // Will be set via effort rating
     }];
     saveWorkoutDetail(currentWeekKey, dayKey, updated);
+
+    // Also log to Health page run entries for trend tracking
+    if (activityForm.type === 'run' && dist && dur && rest?.save) {
+      const runDate = toLocalDateStr(); // Use today's date for the run entry
+      const runEntries = [...(data?.runEntries || []), { id: activityId, date: runDate, distance: dist, duration: dur, pace }];
+      rest.save({ runEntries });
+    }
+
     setRecentActivityId(activityId);
     setEffortRatingDayKey(dayKey);
     setActivityForm({ type: 'weights', distance: '', duration: '', notes: '' });
@@ -288,7 +300,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   }, [currentWorkoutDetails]);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 pb-24 md:pb-6">
+    <div className="max-w-4xl mx-auto px-3 py-4 md:p-6 space-y-6 pb-24 md:pb-6">
       <h1 className="text-2xl font-bold text-white">Training</h1>
 
       {/* Tab bar */}
@@ -447,17 +459,44 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                               }`}>{at.emoji} {at.label}</button>
                           ))}
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <input type="text" placeholder="Distance (mi)" value={activityForm.distance}
-                            onChange={e => setActivityForm(f => ({ ...f, distance: e.target.value }))}
-                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
-                          <input type="text" placeholder="Duration (min)" value={activityForm.duration}
-                            onChange={e => setActivityForm(f => ({ ...f, duration: e.target.value }))}
-                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
-                          <input type="text" placeholder="Notes" value={activityForm.notes}
-                            onChange={e => setActivityForm(f => ({ ...f, notes: e.target.value }))}
-                            className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
-                        </div>
+                        {/* Show distance/time prominently for cardio activities */}
+                        {['run', 'walk', 'bike', 'swim'].includes(activityForm.type) ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-0.5">{activityForm.type === 'swim' ? 'Distance (yards)' : 'Distance (miles)'}</label>
+                                <input type="number" step="0.1" placeholder={activityForm.type === 'swim' ? 'e.g. 1000' : 'e.g. 5.0'} value={activityForm.distance}
+                                  onChange={e => setActivityForm(f => ({ ...f, distance: e.target.value }))}
+                                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-sm text-white placeholder-slate-500" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-0.5">Duration (minutes)</label>
+                                <input type="number" step="1" placeholder="e.g. 45" value={activityForm.duration}
+                                  onChange={e => setActivityForm(f => ({ ...f, duration: e.target.value }))}
+                                  className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-sm text-white placeholder-slate-500" />
+                              </div>
+                            </div>
+                            {activityForm.distance && activityForm.duration && activityForm.type !== 'swim' && (
+                              <div className="text-xs text-blue-400 px-1">
+                                Pace: {(parseFloat(activityForm.duration) / parseFloat(activityForm.distance)).toFixed(2)} min/mile
+                              </div>
+                            )}
+                            <input type="text" placeholder="Notes (optional)" value={activityForm.notes}
+                              onChange={e => setActivityForm(f => ({ ...f, notes: e.target.value }))}
+                              className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="number" step="1" placeholder="Duration (min)" value={activityForm.duration}
+                                onChange={e => setActivityForm(f => ({ ...f, duration: e.target.value }))}
+                                className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                              <input type="text" placeholder="Notes" value={activityForm.notes}
+                                onChange={e => setActivityForm(f => ({ ...f, notes: e.target.value }))}
+                                className="bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-white placeholder-slate-500" />
+                            </div>
+                          </div>
+                        )}
                         <button onClick={() => addActivity(key)}
                           className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-500">+ Add Activity</button>
                       </div>

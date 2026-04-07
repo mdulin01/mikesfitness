@@ -25,8 +25,12 @@ function Section({ title, emoji, defaultOpen = true, children }) {
 
 const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-// Tab 1: Problem List
-function ProblemsTab() {
+// Tab 1: Problem List — clickable with detail panels
+function ProblemsTab({ data, save }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editNotes, setEditNotes] = useState('');
+
   const latestEgfr = getLatestValue('eGFR');
   const latestCreat = getLatestValue('Creatinine');
   const latestPlatelets = getLatestValue('Platelets');
@@ -34,49 +38,74 @@ function ProblemsTab() {
   const latestLpa = getLatestValue('Lp(a)');
   const latestHomocysteine = getLatestValue('Homocysteine');
 
+  // Related labs and imaging for each diagnosis
   const problems = [
     {
       risk: 'Coronary artery disease risk',
       why: `ApoB ${latestApoB?.value || '—'}, Lp(a) ${latestLpa?.value || '—'}, Homocysteine ${latestHomocysteine?.value || '—'}`,
       detail: 'CT Coronary Angio (Feb 2025): minimal plaque, <25% stenosis right posterolateral only. CAC score 0.',
       status: 'active',
+      relatedLabs: ['ApoB', 'LDL-C', 'HDL-C', 'Triglycerides', 'Lp(a)', 'Homocysteine'],
+      relatedImaging: imagingHistory.filter(i => i.category === 'cardiac' || i.category === 'ecg'),
+      managementTab: null,
     },
     {
       risk: 'CKD Stage 3a',
       why: `eGFR ${latestEgfr?.value || '—'} (${latestEgfr?.date || ''}), Creatinine ${latestCreat?.value || '—'}`,
       detail: 'NIH Sep 2025: eGFR 71, Creatinine 1.19. Labcorp Jun 2025: eGFR 56, Creatinine 1.45. Lab variation or hydration-dependent.',
       status: 'monitoring',
+      relatedLabs: ['eGFR', 'Creatinine', 'BUN'],
+      relatedImaging: imagingHistory.filter(i => i.category === 'renal'),
+      managementTab: 'kidney',
     },
     {
       risk: "Crohn's disease / terminal ileitis",
       why: 'Managed — last colonoscopy Mar 2026',
       detail: 'No active Crohn\'s. Hyperplastic polyps only. Next scope per GI.',
       status: 'active',
+      relatedLabs: ['Fecal Calprotectin', 'CRP'],
+      relatedImaging: imagingHistory.filter(i => i.category === 'gi'),
+      managementTab: 'crohns',
     },
     {
       risk: 'Pseudothrombocytopenia',
       why: `Labcorp: ${latestPlatelets?.value || '—'} (EDTA artifact). NIH: 208 (Sep 2025)`,
       detail: 'Platelets normal at NIH (208, 152) but consistently low at Labcorp (100-121). EDTA-induced platelet clumping artifact confirmed.',
       status: 'resolved',
+      relatedLabs: ['Platelets'],
+      relatedImaging: [],
+      managementTab: null,
     },
     {
       risk: 'HPRC (Hereditary Papillary Renal Cell Carcinoma)',
       why: 'MET c.3335A&gt;G mutation. NIH surveillance.',
       detail: 'Right kidney 0.7cm minimally complex cystic lesion (Sep 2025), stable. Monitored by NIH q2yr MRI.',
       status: 'monitoring',
+      relatedLabs: [],
+      relatedImaging: imagingHistory.filter(i => i.category === 'renal' || i.category === 'genetics'),
+      managementTab: 'hprc',
     },
     {
       risk: 'Hyperlipidemia',
       why: 'On rosuvastatin + ezetimibe',
       status: 'active',
+      relatedLabs: ['ApoB', 'LDL-C', 'HDL-C', 'Triglycerides', 'Total Cholesterol'],
+      relatedImaging: [],
+      managementTab: null,
     },
     {
       risk: 'Hyperhomocysteinemia',
       why: `Homocysteine ${latestHomocysteine?.value || '—'} umol/L (goal <10)`,
       detail: 'On B-vitamin supplementation.',
       status: 'active',
+      relatedLabs: ['Homocysteine', 'Vitamin B12', 'Folate'],
+      relatedImaging: [],
+      managementTab: null,
     },
   ];
+
+  // User notes from Firestore
+  const diagnosisNotes = data?.diagnosisNotes || {};
 
   const statusColors = {
     active: 'text-red-400 bg-red-400/10',
@@ -84,20 +113,132 @@ function ProblemsTab() {
     resolved: 'text-green-400 bg-green-400/10',
   };
 
+  const saveNotes = (idx) => {
+    const key = problems[idx].risk;
+    const notes = { ...(data?.diagnosisNotes || {}), [key]: editNotes };
+    save?.({ diagnosisNotes: notes });
+    setEditingIdx(null);
+  };
+
   return (
     <div className="space-y-3">
-      {problems.map((p, i) => (
-        <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="font-semibold text-white text-lg">{p.risk}</h3>
-            <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColors[p.status]}`}>
-              {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
-            </span>
+      {problems.map((p, i) => {
+        const isExpanded = expandedIdx === i;
+        const userNote = diagnosisNotes[p.risk] || '';
+        return (
+          <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <button
+              onClick={() => { setExpandedIdx(isExpanded ? null : i); setEditingIdx(null); }}
+              className="w-full p-4 text-left hover:bg-slate-750/50 transition"
+            >
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="font-semibold text-white text-base">{p.risk}</h3>
+                <div className="flex items-center gap-2 ml-2">
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${statusColors[p.status]}`}>
+                    {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                  </span>
+                  <span className="text-slate-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                </div>
+              </div>
+              <p className="text-slate-400 text-sm">{p.why}</p>
+              {p.detail && !isExpanded && <p className="text-slate-500 text-xs mt-1 line-clamp-1">{p.detail}</p>}
+            </button>
+
+            {isExpanded && (
+              <div className="px-4 pb-4 space-y-3 border-t border-slate-700 pt-3">
+                {/* Detail */}
+                {p.detail && <p className="text-slate-400 text-sm">{p.detail}</p>}
+
+                {/* User notes */}
+                {userNote && editingIdx !== i && (
+                  <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-blue-300">My Notes</span>
+                      <button onClick={() => { setEditingIdx(i); setEditNotes(userNote); }} className="text-xs text-blue-400 hover:underline">Edit</button>
+                    </div>
+                    <p className="text-xs text-blue-200 whitespace-pre-wrap">{userNote}</p>
+                  </div>
+                )}
+
+                {/* Edit notes */}
+                {editingIdx === i ? (
+                  <div className="space-y-2">
+                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                      placeholder="Add your notes about this diagnosis..."
+                      rows={3}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-500 resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={() => saveNotes(i)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                      <button onClick={() => setEditingIdx(null)} className="px-3 py-1.5 bg-slate-600 text-slate-300 rounded-lg text-xs">Cancel</button>
+                    </div>
+                  </div>
+                ) : !userNote && (
+                  <button onClick={() => { setEditingIdx(i); setEditNotes(''); }}
+                    className="text-xs text-blue-400 hover:underline">+ Add notes</button>
+                )}
+
+                {/* Related Lab Values */}
+                {p.relatedLabs && p.relatedLabs.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Related Labs</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {p.relatedLabs.map(labName => {
+                        const latest = getLatestValue(labName);
+                        const trend = getTrend(labName);
+                        const prevVal = trend.length >= 2 ? trend[trend.length - 2].value : null;
+                        const arrow = prevVal !== null ? (latest?.value > prevVal ? '↑' : latest?.value < prevVal ? '↓' : '→') : '';
+                        return (
+                          <div key={labName} className={`p-2 rounded-lg border text-xs ${
+                            latest?.flag ? 'bg-red-400/10 border-red-400/30' : 'bg-slate-700/50 border-slate-600'
+                          }`}>
+                            <div className="text-slate-400">{labName}</div>
+                            <div className="flex items-baseline gap-1">
+                              <span className={`font-bold ${latest?.flag ? 'text-red-300' : 'text-white'}`}>
+                                {latest?.value ?? '—'}
+                              </span>
+                              {arrow && <span className="text-slate-400">{arrow}</span>}
+                            </div>
+                            {latest?.date && <div className="text-slate-600 mt-0.5">{latest.date}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Related Imaging */}
+                {p.relatedImaging && p.relatedImaging.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Related Imaging / Procedures</h4>
+                    <div className="space-y-1.5">
+                      {p.relatedImaging.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((img, j) => (
+                        <div key={j} className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg text-xs">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-white font-medium truncate block">{img.name}</span>
+                            <span className="text-slate-500">{formatDate(img.date)} · {img.source}</span>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ml-2 whitespace-nowrap ${
+                            img.result === 'Normal' || img.result === 'Stable' ? 'bg-green-400/10 text-green-400' :
+                            img.result === 'Abnormal' ? 'bg-red-400/10 text-red-400' :
+                            'bg-yellow-400/10 text-yellow-400'
+                          }`}>{img.result}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Link to management tab */}
+                {p.managementTab && (
+                  <div className="pt-1">
+                    <span className="text-xs text-slate-500">See the <strong className="text-blue-400">{p.managementTab === 'crohns' ? "Crohn's" : p.managementTab === 'hprc' ? 'HPRC' : 'Kidney'}</strong> tab for full management details.</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-slate-400 text-sm">{p.why}</p>
-          {p.detail && <p className="text-slate-500 text-xs mt-2">{p.detail}</p>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -613,7 +754,7 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'problems': return <ProblemsTab />;
+      case 'problems': return <ProblemsTab data={data} save={save} />;
       case 'medications': return <MedicationsTab />;
       case 'labs': return <LabsTab />;
       case 'imaging': return <ImagingTab />;
@@ -626,7 +767,7 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6 pb-24 md:pb-6">
+    <div className="min-h-screen bg-slate-900 px-3 py-4 md:p-6 pb-24 md:pb-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
           <h1 className="text-3xl font-bold text-white mb-1">Medical EHR</h1>
