@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { labHistory, keyMetrics, getTrend, getLatestValue } from '../data/labData';
 import { imagingHistory, colonoscopyTimeline, cardiacSummary, getResultsByCategory } from '../data/imagingData';
@@ -752,6 +752,57 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
     { id: 'vaccines', label: 'Vaccines', icon: '💉' },
   ];
 
+  // Search results — searches across all categories when query is active
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+
+    const results = { labs: [], imaging: [], meds: [], problems: [], vaccines: [] };
+
+    // Search lab history
+    labHistory.forEach(lab => {
+      Object.entries(lab.values).forEach(([name, val]) => {
+        if (name.toLowerCase().includes(q) || (val.note && val.note.toLowerCase().includes(q))) {
+          results.labs.push({ name, value: val.value, unit: val.unit, flag: val.flag, date: lab.date, source: lab.source });
+        }
+      });
+    });
+    // Dedupe labs — keep most recent per name
+    const seenLabs = new Map();
+    results.labs.forEach(l => {
+      if (!seenLabs.has(l.name) || l.date > seenLabs.get(l.name).date) seenLabs.set(l.name, l);
+    });
+    results.labs = [...seenLabs.values()];
+
+    // Search imaging
+    imagingHistory.forEach(img => {
+      if (img.name.toLowerCase().includes(q) || img.summary?.toLowerCase().includes(q) || img.category?.toLowerCase().includes(q)) {
+        results.imaging.push(img);
+      }
+    });
+
+    // Search meds
+    (healthPlan.medSchedule || []).forEach(group => {
+      group.items.forEach(item => {
+        if (item.name.toLowerCase().includes(q) || item.notes?.toLowerCase().includes(q)) {
+          results.meds.push({ ...item, time: group.label });
+        }
+      });
+    });
+
+    // Search problems
+    const problemsList = [
+      'Coronary artery disease risk', 'CKD Stage 3a', "Crohn's disease / terminal ileitis",
+      'Pseudothrombocytopenia', 'HPRC', 'Hyperlipidemia', 'Hyperhomocysteinemia',
+    ];
+    problemsList.forEach(p => {
+      if (p.toLowerCase().includes(q)) results.problems.push(p);
+    });
+
+    const total = results.labs.length + results.imaging.length + results.meds.length + results.problems.length;
+    return total > 0 ? results : { empty: true };
+  }, [searchQuery]);
+
   const renderTab = () => {
     switch (activeTab) {
       case 'problems': return <ProblemsTab data={data} save={save} />;
@@ -766,6 +817,8 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
     }
   };
 
+  const clearSearch = () => setSearchQuery('');
+
   return (
     <div className="min-h-screen bg-slate-900 px-3 py-4 md:p-6 pb-24 md:pb-6">
       <div className="max-w-4xl mx-auto">
@@ -775,31 +828,122 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
         </div>
 
         {/* Search */}
-        <div className="mb-4">
+        <div className="mb-4 relative">
           <input type="text" placeholder="Search labs, imaging, meds..." value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+          {searchQuery && (
+            <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm">✕</button>
+          )}
         </div>
 
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 rounded-lg font-medium whitespace-nowrap transition text-sm ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Search Results */}
+        {searchResults && !searchResults.empty && (
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Search Results</h2>
+              <button onClick={clearSearch} className="text-xs text-blue-400 hover:underline">Clear</button>
+            </div>
 
-        <div>
-          {renderTab()}
-        </div>
+            {searchResults.problems.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Diagnoses</h3>
+                <div className="space-y-1">
+                  {searchResults.problems.map((p, i) => (
+                    <button key={i} onClick={() => { setActiveTab('problems'); clearSearch(); }}
+                      className="w-full text-left p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white hover:bg-slate-750">
+                      ⚕️ {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchResults.labs.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Labs</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {searchResults.labs.map((l, i) => (
+                    <button key={i} onClick={() => { setActiveTab('labs'); clearSearch(); }}
+                      className={`text-left p-2 rounded-lg border text-xs ${l.flag ? 'bg-red-400/10 border-red-400/30' : 'bg-slate-800 border-slate-700'}`}>
+                      <div className="text-slate-400">{l.name}</div>
+                      <div className={`font-bold ${l.flag ? 'text-red-300' : 'text-white'}`}>{l.value ?? '—'} <span className="text-slate-500 font-normal">{l.unit}</span></div>
+                      <div className="text-slate-600">{l.date} · {l.source}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchResults.imaging.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Imaging</h3>
+                <div className="space-y-1">
+                  {searchResults.imaging.slice(0, 5).map((img, i) => (
+                    <button key={i} onClick={() => { setActiveTab('imaging'); clearSearch(); }}
+                      className="w-full text-left p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs hover:bg-slate-750">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-medium truncate">{img.name}</span>
+                        <span className={`ml-2 px-2 py-0.5 rounded-full whitespace-nowrap ${
+                          img.result === 'Normal' || img.result === 'Stable' ? 'bg-green-400/10 text-green-400' :
+                          img.result === 'Abnormal' ? 'bg-red-400/10 text-red-400' : 'bg-yellow-400/10 text-yellow-400'
+                        }`}>{img.result}</span>
+                      </div>
+                      <div className="text-slate-500">{formatDate(img.date)} · {img.source}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchResults.meds.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Medications</h3>
+                <div className="space-y-1">
+                  {searchResults.meds.map((m, i) => (
+                    <button key={i} onClick={() => { setActiveTab('medications'); clearSearch(); }}
+                      className="w-full text-left p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs hover:bg-slate-750">
+                      <span className="text-white font-medium">{m.name}</span>
+                      <span className="text-slate-500 ml-2">{m.notes}</span>
+                      <span className="text-slate-600 ml-2">({m.time})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {searchResults?.empty && (
+          <div className="mb-6 p-4 bg-slate-800 border border-slate-700 rounded-lg text-center">
+            <p className="text-sm text-slate-400">No results for "{searchQuery}"</p>
+          </div>
+        )}
+
+        {/* Tabs — hidden during search */}
+        {!searchResults && (
+          <>
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-2 rounded-lg font-medium whitespace-nowrap transition text-sm ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              {renderTab()}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
