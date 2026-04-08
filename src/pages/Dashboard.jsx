@@ -60,7 +60,7 @@ function systemStatus(key, data, dailyChecks, medChecks) {
       const bf = latest.bodyFat;
       const target = healthPlan.weightGoals?.target || 185;
       const lines = [`${wt} lbs · ${fmtDate(latest.date)} · Goal ${target}`];
-      if (bf) lines.push(`Body fat ${bf}% · Goal <18%`);
+      if (bf) lines.push(`Body fat ${bf}% · Goal <20%`);
       if (wt < target) lines.push(`🎉 ${(target - wt).toFixed(1)} lbs below goal!`);
       else if (wt > target) lines.push(`${(wt - target).toFixed(1)} lbs to go`);
       const detail = lines.join('\n');
@@ -126,7 +126,7 @@ function systemStatus(key, data, dailyChecks, medChecks) {
       const wTarget = healthPlan.weightGoals?.target || 185;
       const lines = [];
       if (wt) lines.push(`Weight ${wt} lbs · ${fmtDate(latest.date)} · Goal ${wTarget}`);
-      if (bf) lines.push(`Body fat ${bf}% · Goal <18%`);
+      if (bf) lines.push(`Body fat ${bf}% · Goal <20%`);
       const detail = lines.length ? lines.join('\n') : 'No data';
       if (bf && bf < 20) return { status: 'green', label: `${bf}% BF`, detail };
       if (bf && bf < 25) return { status: 'yellow', label: `${bf}% BF`, detail };
@@ -314,7 +314,7 @@ export default function Dashboard({
 
     // Body fat
     const bf = latestW?.bodyFat;
-    bioParts.push(bf ? (bf < 18 ? 12.5 : bf < 22 ? 9 : bf < 28 ? 4 : 0) : 6);
+    bioParts.push(bf ? (bf < 20 ? 12.5 : bf < 24 ? 9 : bf < 28 ? 4 : 0) : 6);
 
     // Gut (calprotectin)
     const cal = getLatestValue('Fecal Calprotectin');
