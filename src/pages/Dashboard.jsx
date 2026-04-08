@@ -52,6 +52,22 @@ const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US',
 function systemStatus(key, data, dailyChecks, medChecks) {
   // Returns { status: 'green'|'yellow'|'red', label, detail }
   switch (key) {
+    case 'weight': {
+      const weights = data?.weightEntries || [];
+      const latest = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+      if (!latest) return { status: 'yellow', label: 'No data', detail: 'No weight data' };
+      const wt = latest.weight;
+      const bf = latest.bodyFat;
+      const target = healthPlan.weightGoals?.target || 185;
+      const lines = [`${wt} lbs · ${fmtDate(latest.date)} · Goal ${target}`];
+      if (bf) lines.push(`Body fat ${bf}% · Goal <18%`);
+      if (wt < target) lines.push(`🎉 ${(target - wt).toFixed(1)} lbs below goal!`);
+      else if (wt > target) lines.push(`${(wt - target).toFixed(1)} lbs to go`);
+      const detail = lines.join('\n');
+      if (wt < 185) return { status: 'green', label: `${wt} lbs`, detail };
+      if (wt <= 190) return { status: 'yellow', label: `${wt} lbs`, detail };
+      return { status: 'red', label: `${wt} lbs`, detail };
+    }
     case 'cardio': {
       const apoB = getLatestValue('ApoB');
       const ldl = getLatestValue('LDL-C') || getLatestValue('LDL');
@@ -270,51 +286,60 @@ export default function Dashboard({
     const behavior = exercisePts + nutritionPts + sleepPts + medPts + fastPts; // 0-100
 
     // ── BIOLOGY SCORE (0-100) ── your lab/vital numbers
-    // Each system scores 0-14.3 (7 systems)
+    // 8 systems, each scores 0-12.5 (total 100)
     const bioParts = [];
     const apoB = getLatestValue('ApoB');
-    bioParts.push(apoB ? (apoB.value < 70 ? 14.3 : apoB.value < 90 ? 10 : apoB.value < 120 ? 5 : 0) : 7); // neutral if no data
+    bioParts.push(apoB ? (apoB.value < 70 ? 12.5 : apoB.value < 90 ? 9 : apoB.value < 120 ? 4 : 0) : 6); // neutral if no data
 
     const egfr = getLatestValue('eGFR');
-    bioParts.push(egfr ? (egfr.value >= 90 ? 14.3 : egfr.value >= 60 ? 10 : egfr.value >= 30 ? 5 : 0) : 7);
+    bioParts.push(egfr ? (egfr.value >= 90 ? 12.5 : egfr.value >= 60 ? 9 : egfr.value >= 30 ? 4 : 0) : 6);
 
     const a1c = getLatestValue('HbA1c');
-    bioParts.push(a1c ? (a1c.value < 5.7 ? 14.3 : a1c.value < 6.5 ? 10 : 5) : 7);
+    bioParts.push(a1c ? (a1c.value < 5.7 ? 12.5 : a1c.value < 6.5 ? 9 : 4) : 6);
 
-    // Weight toward goal
+    // Weight: <185 green, 185-190 yellow, >190 red
     const weights = data?.weightEntries || [];
     const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const wTarget = healthPlan.weightGoals?.target || 185;
     if (latestW) {
-      const diff = Math.abs(latestW.weight - wTarget);
-      bioParts.push(diff < 5 ? 14.3 : diff < 15 ? 10 : diff < 25 ? 5 : 0);
-    } else bioParts.push(7);
+      bioParts.push(latestW.weight < 185 ? 12.5 : latestW.weight <= 190 ? 9 : 4);
+    } else bioParts.push(6);
 
     // BP
     const bpEntries = data?.bpEntries || [];
     const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
     if (latestBP) {
-      bioParts.push(latestBP.systolic < 120 && latestBP.diastolic < 80 ? 14.3 :
-        latestBP.systolic < 130 ? 10 : latestBP.systolic < 140 ? 5 : 0);
-    } else bioParts.push(7);
+      bioParts.push(latestBP.systolic < 120 && latestBP.diastolic < 80 ? 12.5 :
+        latestBP.systolic < 130 ? 9 : latestBP.systolic < 140 ? 4 : 0);
+    } else bioParts.push(6);
 
     // Body fat
     const bf = latestW?.bodyFat;
-    bioParts.push(bf ? (bf < 18 ? 14.3 : bf < 22 ? 10 : bf < 28 ? 5 : 0) : 7);
+    bioParts.push(bf ? (bf < 18 ? 12.5 : bf < 22 ? 9 : bf < 28 ? 4 : 0) : 6);
 
     // Gut (calprotectin)
     const cal = getLatestValue('Fecal Calprotectin');
-    bioParts.push(cal ? (cal.value < 50 ? 14.3 : cal.value < 200 ? 10 : 5) : 7);
+    bioParts.push(cal ? (cal.value < 50 ? 12.5 : cal.value < 200 ? 9 : 4) : 6);
+
+    // RHR
+    const hrEntries = data?.hrEntries || [];
+    const latestHR = hrEntries.length > 0 ? [...hrEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+    if (latestHR) {
+      bioParts.push(latestHR.bpm < 60 ? 12.5 : latestHR.bpm < 70 ? 9 : latestHR.bpm < 80 ? 4 : 0);
+    } else bioParts.push(6);
 
     const biology = Math.round(bioParts.reduce((s, v) => s + v, 0));
 
     const overall = Math.round(behavior * 0.5 + biology * 0.5);
 
-    return { overall, behavior, biology };
-  }, [dailyChecks, todayMeals, medChecks, totalMedChecked, totalMedItems, todayFasting, data?.weightEntries, data?.bpEntries]);
+    // Expose weight status for display
+    const weightStatus = latestW ? (latestW.weight < 185 ? 'green' : latestW.weight <= 190 ? 'yellow' : 'red') : 'yellow';
+
+    return { overall, behavior, biology, weightStatus, latestWeight: latestW?.weight };
+  }, [dailyChecks, todayMeals, medChecks, totalMedChecked, totalMedItems, todayFasting, data?.weightEntries, data?.bpEntries, data?.hrEntries]);
 
   // Systems for display
   const systems = useMemo(() => [
+    { key: 'weight', label: 'Weight', emoji: '⚖️' },
     { key: 'cardio', label: 'Cardio', emoji: '❤️' },
     { key: 'kidney', label: 'Kidney', emoji: '🫘' },
     { key: 'metabolic', label: 'Metabolic', emoji: '🔬' },
@@ -403,7 +428,7 @@ export default function Dashboard({
         </div>
 
         {/* Systems row */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-4 gap-1 md:grid-cols-8">
           {systems.map(sys => {
             const c = STATUS_COLORS[sys.status];
             const isExpanded = expandedSystem === sys.key;
