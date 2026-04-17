@@ -375,6 +375,24 @@ export const labHistory = [
       'Urine pH': { value: 7, unit: '', flag: null, ref: '5.0-8.0' },
     },
   },
+  {
+    date: '2026-03-25',
+    source: 'H&H Labs',
+    provider: 'Siddiqi, Shan',
+    values: {
+      // Testosterone Eligibility Panel - Chem/Immuno
+      'Albumin': { value: 4.5, unit: 'g/dL', flag: null, ref: '3.97-4.94' },
+      'Estradiol': { value: '<25', unit: 'pg/mL', flag: null, ref: '11.3-43.2' },
+      'FSH': { value: 20.5, unit: 'mIU/mL', flag: 'high', ref: '1.5-12.4' },
+      'Free Testosterone': { value: 7.41, unit: 'ng/dL', flag: null, ref: '5-21' },
+      'LH': { value: 6.6, unit: 'mIU/mL', flag: null, ref: '1.7-8.6' },
+      'SHBG': { value: 51.5, unit: 'nmol/L', flag: null, ref: '19.3-76.4' },
+      'PSA': { value: 3.02, unit: 'ng/mL', flag: null, ref: '0-4' },
+      'Testosterone': { value: 483, unit: 'ng/dL', flag: null, ref: '193-740' },
+      // Testosterone Eligibility Panel - Hematology
+      'Hematocrit': { value: 47.9, unit: '%', flag: null, ref: '40.1-51' },
+    },
+  },
 ];
 
 // Key metrics with current values and goals for the Health page

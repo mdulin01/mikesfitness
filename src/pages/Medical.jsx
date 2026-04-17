@@ -583,6 +583,253 @@ function HPRCTab() {
   );
 }
 
+// Tab 9: Visit Prep
+function VisitPrepTab() {
+  // Compute what's due based on monitoring schedule and last lab dates
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  // Find most recent date for each test
+  const lastDate = (testName) => {
+    for (let i = labHistory.length - 1; i >= 0; i--) {
+      if (labHistory[i].values[testName]?.value != null) return labHistory[i].date;
+    }
+    return null;
+  };
+
+  const monthsSince = (dateStr) => {
+    if (!dateStr) return Infinity;
+    const d = new Date(dateStr);
+    return Math.round((today - d) / (30.44 * 86400000));
+  };
+
+  // Upcoming appointments (next 30 days)
+  const appointments = [];
+  // Primary care Apr 24 is hardcoded context from the user
+  const upcomingVisit = { type: 'Primary Care', date: '2026-04-24', daysOut: Math.ceil((new Date('2026-04-24') - new Date(todayStr)) / 86400000) };
+
+  // === LABS TO REQUEST ===
+  const labsToRequest = [];
+
+  // Lipid/ApoB — last Jun 2025, 10 months ago, 6-month cadence
+  const lastApoB = lastDate('ApoB');
+  if (monthsSince(lastApoB) >= 5) {
+    labsToRequest.push({
+      panel: 'NMR LipoProfile + ApoB',
+      reason: `Last drawn ${lastApoB || 'never'}${monthsSince(lastApoB) !== Infinity ? ` (${monthsSince(lastApoB)} months ago)` : ''}. ApoB was 111 mg/dL (goal <70). On rosuvastatin + ezetimibe — need to assess response.`,
+      priority: 'high',
+      markers: ['ApoB', 'LDL-P', 'LDL-C', 'HDL-C', 'Triglycerides', 'Lp(a)'],
+    });
+  }
+
+  // CMP (kidney function) — last Sep 2025 NIH, 7 months ago
+  const lastCreat = lastDate('Creatinine');
+  if (monthsSince(lastCreat) >= 5) {
+    labsToRequest.push({
+      panel: 'Comprehensive Metabolic Panel (CMP)',
+      reason: `Last drawn ${lastCreat || 'never'}${monthsSince(lastCreat) !== Infinity ? ` (${monthsSince(lastCreat)} months ago)` : ''}. Creatinine ranged 1.19–1.45, eGFR 56–71 between labs. Critical to recheck kidney function.`,
+      priority: 'high',
+      markers: ['Creatinine', 'eGFR', 'BUN', 'Glucose', 'Electrolytes'],
+    });
+  }
+
+  // Homocysteine — last Jun 2025, was 21.4 (goal <10)
+  const lastHcy = lastDate('Homocysteine');
+  if (monthsSince(lastHcy) >= 5) {
+    labsToRequest.push({
+      panel: 'Homocysteine',
+      reason: `Last drawn ${lastHcy || 'never'} at 21.4 umol/L (goal <10). On B-vitamin supplementation — need to check if it's working.`,
+      priority: 'high',
+      markers: ['Homocysteine'],
+    });
+  }
+
+  // CBC — last Sep 2025
+  const lastCBC = lastDate('WBC');
+  if (monthsSince(lastCBC) >= 5) {
+    labsToRequest.push({
+      panel: 'CBC with Differential',
+      reason: `Last drawn ${lastCBC || 'never'}${monthsSince(lastCBC) !== Infinity ? ` (${monthsSince(lastCBC)} months ago)` : ''}. Monitoring platelets (pseudothrombocytopenia at Labcorp, normal at NIH).`,
+      priority: 'medium',
+      markers: ['WBC', 'RBC', 'Hemoglobin', 'Hematocrit', 'Platelets'],
+    });
+  }
+
+  // Vitamin D — last Jun 2025
+  const lastVitD = lastDate('Vitamin D');
+  if (monthsSince(lastVitD) >= 9) {
+    labsToRequest.push({
+      panel: 'Vitamin D, 25-Hydroxy',
+      reason: `Last drawn ${lastVitD || 'never'} at 46.8 ng/mL. Supplementing — annual recheck.`,
+      priority: 'low',
+      markers: ['Vitamin D'],
+    });
+  }
+
+  // HbA1c — last Jun 2025
+  const lastA1c = lastDate('HbA1c');
+  if (monthsSince(lastA1c) >= 9) {
+    labsToRequest.push({
+      panel: 'HbA1c',
+      reason: `Last drawn ${lastA1c || 'never'} at 5.0%. Annual metabolic check.`,
+      priority: 'low',
+      markers: ['HbA1c'],
+    });
+  }
+
+  // hs-CRP — last Jun 2025
+  const lastCRP = lastDate('CRP');
+  if (monthsSince(lastCRP) >= 9) {
+    labsToRequest.push({
+      panel: 'hs-CRP',
+      reason: `Last drawn ${lastCRP || 'never'} at 0.34 mg/L. Annual inflammation marker.`,
+      priority: 'low',
+      markers: ['CRP'],
+    });
+  }
+
+  // === QUESTIONS FOR THE DOCTOR ===
+  const questions = [
+    {
+      topic: 'PSA Increase',
+      emoji: '⚠️',
+      priority: 'high',
+      question: 'PSA went from 0.7 (Oct 2024) to 3.02 (Mar 2026). Still within range (0–4) but a 4x increase. Is this clinically significant? Should we recheck or get a free PSA ratio?',
+    },
+    {
+      topic: 'FSH Elevated',
+      emoji: '⚠️',
+      priority: 'high',
+      question: 'FSH was 20.5 mIU/mL (ref 1.5–12.4) on the H&H panel. Combined with testosterone dropping from 619 to 483 — does this suggest primary hypogonadism? What workup do you recommend?',
+    },
+    {
+      topic: 'Kidney Function Trend',
+      emoji: '🫘',
+      priority: 'high',
+      question: 'eGFR has ranged from 56 (Labcorp, Jun 2025) to 71 (NIH, Sep 2025). Creatinine 1.19–1.45 across labs. Is this CKD Stage 2 vs 3a? Should we get a cystatin C for a more accurate GFR estimate?',
+    },
+    {
+      topic: 'Lipid Management',
+      emoji: '❤️',
+      priority: 'medium',
+      question: 'ApoB is still 111 (goal <70) and triglycerides spiked to 236 in June 2025. On rosuvastatin + ezetimibe. Should we increase the statin dose or add icosapent ethyl (Vascepa)?',
+    },
+    {
+      topic: 'Homocysteine Follow-up',
+      emoji: '📊',
+      priority: 'medium',
+      question: 'Homocysteine was 21.4 in June 2025 (goal <10). Have been taking B-vitamins. Is there a better methylfolate/B12 protocol if levels remain high?',
+    },
+    {
+      topic: 'Testosterone / Enclomiphene',
+      emoji: '💊',
+      priority: 'medium',
+      question: 'Testosterone 483 (was 619 in 2023). Currently on enclomiphene from H&H — should this be monitored through you as well? Any concerns with the current protocol?',
+    },
+    {
+      topic: 'Platelet Monitoring',
+      emoji: '🩸',
+      priority: 'low',
+      question: 'Platelets consistently low at Labcorp (100–121) but normal at NIH (152, 208). EDTA artifact confirmed. Can we add a citrated platelet count at Labcorp to avoid false lows?',
+    },
+  ];
+
+  const priorityColors = {
+    high: 'border-red-500/30 bg-red-900/10',
+    medium: 'border-yellow-500/30 bg-yellow-900/10',
+    low: 'border-slate-600 bg-slate-800',
+  };
+
+  const priorityBadge = {
+    high: 'bg-red-400/20 text-red-400',
+    medium: 'bg-yellow-400/20 text-yellow-400',
+    low: 'bg-slate-700 text-slate-400',
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Visit header */}
+      <div className="bg-blue-900/30 border border-blue-700/50 rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-white text-lg">🩺 Primary Care Visit</h3>
+            <p className="text-sm text-blue-300 mt-1">
+              {new Date('2026-04-24T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-bold text-blue-400">{upcomingVisit.daysOut}</span>
+            <p className="text-xs text-blue-400">days away</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Labs to request */}
+      <Section title={`Labs to Request (${labsToRequest.length})`} emoji="🧪" defaultOpen={true}>
+        <div className="space-y-3">
+          {labsToRequest.map((lab, i) => (
+            <div key={i} className={`rounded-lg border p-3 ${priorityColors[lab.priority]}`}>
+              <div className="flex items-start justify-between mb-1">
+                <h4 className="font-semibold text-white text-sm">{lab.panel}</h4>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityBadge[lab.priority]}`}>
+                  {lab.priority}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mb-2">{lab.reason}</p>
+              <div className="flex flex-wrap gap-1">
+                {lab.markers.map(m => (
+                  <span key={m} className="text-xs bg-slate-700/70 text-slate-300 px-2 py-0.5 rounded">{m}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Questions for the doctor */}
+      <Section title={`Questions to Discuss (${questions.length})`} emoji="❓" defaultOpen={true}>
+        <div className="space-y-3">
+          {questions.map((q, i) => (
+            <div key={i} className={`rounded-lg border p-3 ${priorityColors[q.priority]}`}>
+              <div className="flex items-start justify-between mb-1">
+                <h4 className="font-semibold text-white text-sm">{q.emoji} {q.topic}</h4>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityBadge[q.priority]}`}>
+                  {q.priority}
+                </span>
+              </div>
+              <p className="text-sm text-slate-300">{q.question}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Quick reference: recent flagged values */}
+      <Section title="Recent Flagged Values" emoji="🚩" defaultOpen={false}>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          {[
+            { name: 'ApoB', val: '111', unit: 'mg/dL', ref: '<90', date: '2025-06-27' },
+            { name: 'Homocysteine', val: '21.4', unit: 'umol/L', ref: '0-14.5', date: '2025-06-27' },
+            { name: 'FSH', val: '20.5', unit: 'mIU/mL', ref: '1.5-12.4', date: '2026-03-25' },
+            { name: 'PSA', val: '3.02', unit: 'ng/mL', ref: '0-4', date: '2026-03-25' },
+            { name: 'Creatinine', val: '1.19–1.45', unit: 'mg/dL', ref: '0.76-1.27', date: '2025' },
+            { name: 'eGFR', val: '56–71', unit: 'mL/min', ref: '>59', date: '2025' },
+            { name: 'Triglycerides', val: '236', unit: 'mg/dL', ref: '0-149', date: '2025-06-27' },
+            { name: 'LDL-C', val: '146', unit: 'mg/dL', ref: '0-99', date: '2025-06-27' },
+            { name: 'Testosterone', val: '483', unit: 'ng/dL', ref: '193-740', date: '2026-03-25', note: 'In range but ↓ from 619' },
+          ].map((item, i) => (
+            <div key={i} className="p-2 rounded bg-red-400/10">
+              <span className="text-slate-500">{item.name}</span>
+              <div className="font-medium text-red-300">{item.val} <span className="text-slate-600">{item.unit}</span></div>
+              <span className="text-slate-600">ref: {item.ref}</span>
+              {item.note && <div className="text-yellow-500 mt-0.5">{item.note}</div>}
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
 // Main component
 export default function Medical({ data, save, addLabResult, ...rest }) {
   const [activeTab, setActiveTab] = useState('problems');
@@ -609,10 +856,12 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
     { id: 'kidney', label: 'Kidney', icon: '🫘' },
     { id: 'crohns', label: "Crohn's", icon: '🔬' },
     { id: 'vaccines', label: 'Vaccines', icon: '💉' },
+    { id: 'visit-prep', label: 'Visit Prep', icon: '📋' },
   ];
 
   const renderTab = () => {
     switch (activeTab) {
+      case 'visit-prep': return <VisitPrepTab />;
       case 'problems': return <ProblemsTab />;
       case 'medications': return <MedicationsTab />;
       case 'labs': return <LabsTab />;
@@ -621,7 +870,7 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
       case 'kidney': return <KidneyTab />;
       case 'crohns': return <CrohnsTab />;
       case 'vaccines': return <VaccinesTab vaccineStatus={vaccineStatus} onToggleVaccine={onToggleVaccine} />;
-      default: return <ProblemsTab />;
+      default: return <VisitPrepTab />;
     }
   };
 
