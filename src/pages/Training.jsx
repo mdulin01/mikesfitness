@@ -485,12 +485,18 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
 
           {/* Weekly schedule with expandable details */}
           <div className="space-y-2">
-            {exercisePlan.weeklySchedule.map(day => {
+            {exercisePlan.weeklySchedule.map((day, dayIdx) => {
               const key = day.day.toLowerCase();
               const done = currentCompletions[key];
               const isToday = key === todayDow && weekOffset === 0;
               const isExpanded = expandedDay === key;
               const dayActivities = currentWorkoutDetails[key] || [];
+
+              // Map weeklySchedule order (Mon-Sun) to weekDates order (Sun-Sat)
+              const dowIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(key);
+              const dayDate = dowIndex >= 0 ? weekDates[dowIndex] : null;
+              const appleDay = dayDate ? dailyMetricsByDate?.[dayDate] : null;
+              const aA = appleDay?.activity;
 
               return (
                 <div key={key} className={`rounded-xl overflow-hidden transition-all ${
@@ -508,6 +514,15 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                     <button onClick={() => setExpandedDay(isExpanded ? null : key)} className="flex-1 text-left">
                       <div className="font-medium text-white">{day.day}</div>
                       <div className="text-sm text-slate-400">{day.exercise}</div>
+                      {/* Apple Watch summary chip on the collapsed row */}
+                      {aA && ((aA.exerciseMinutes || 0) > 0 || (aA.swimDistanceMeters || 0) > 0) && (
+                        <div className="flex gap-1 mt-1 flex-wrap text-[10px]">
+                          {aA.exerciseMinutes > 0 && <span className="bg-emerald-900/40 text-emerald-400 px-1.5 py-0.5 rounded">⌚ {Math.round(aA.exerciseMinutes)} min</span>}
+                          {aA.distanceMiles > 0.1 && <span className="bg-emerald-900/40 text-emerald-400 px-1.5 py-0.5 rounded">⌚ {aA.distanceMiles.toFixed(1)} mi</span>}
+                          {aA.swimDistanceMeters > 0 && <span className="bg-cyan-900/40 text-cyan-400 px-1.5 py-0.5 rounded">⌚ 🏊 {Math.round(aA.swimDistanceMeters).toLocaleString()} yds</span>}
+                          {aA.activeEnergyKcal > 0 && <span className="bg-orange-900/40 text-orange-400 px-1.5 py-0.5 rounded">⌚ {Math.round(aA.activeEnergyKcal)} kcal</span>}
+                        </div>
+                      )}
                       {dayActivities.length > 0 && (
                         <div className="flex gap-1 mt-1 flex-wrap">
                           {dayActivities.map(a => {
@@ -527,6 +542,23 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
 
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-slate-700/50 pt-3 space-y-3">
+                      {/* Apple Watch detail panel for this day */}
+                      {aA && ((aA.steps || 0) > 0 || (aA.exerciseMinutes || 0) > 0 || (aA.swimDistanceMeters || 0) > 0) && (
+                        <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-lg p-3">
+                          <div className="text-xs font-medium text-emerald-400 mb-2">⌚ Apple Watch · {dayDate}</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                            {aA.steps != null && <div><div className="text-sm font-bold text-white">{Math.round(aA.steps).toLocaleString()}</div><div className="text-[10px] text-slate-500">steps</div></div>}
+                            {aA.exerciseMinutes != null && aA.exerciseMinutes > 0 && <div><div className="text-sm font-bold text-white">{Math.round(aA.exerciseMinutes)}</div><div className="text-[10px] text-slate-500">exercise min</div></div>}
+                            {aA.distanceMiles != null && aA.distanceMiles > 0 && <div><div className="text-sm font-bold text-white">{aA.distanceMiles.toFixed(2)}</div><div className="text-[10px] text-slate-500">miles</div></div>}
+                            {aA.activeEnergyKcal != null && <div><div className="text-sm font-bold text-white">{Math.round(aA.activeEnergyKcal)}</div><div className="text-[10px] text-slate-500">active kcal</div></div>}
+                            {aA.swimDistanceMeters > 0 && <div><div className="text-sm font-bold text-cyan-400">{Math.round(aA.swimDistanceMeters).toLocaleString()}</div><div className="text-[10px] text-slate-500">swim yds</div></div>}
+                            {aA.flightsClimbed > 0 && <div><div className="text-sm font-bold text-white">{Math.round(aA.flightsClimbed)}</div><div className="text-[10px] text-slate-500">floors</div></div>}
+                            {appleDay?.vitals?.heartRateRest && <div><div className="text-sm font-bold text-white">{Math.round(appleDay.vitals.heartRateRest)}</div><div className="text-[10px] text-slate-500">RHR</div></div>}
+                            {appleDay?.vitals?.hrv && <div><div className="text-sm font-bold text-white">{Math.round(appleDay.vitals.hrv)}</div><div className="text-[10px] text-slate-500">HRV ms</div></div>}
+                          </div>
+                        </div>
+                      )}
+
                       {dayActivities.length > 0 && (
                         <div className="space-y-1">
                           {dayActivities.map(a => {
@@ -547,7 +579,7 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                         </div>
                       )}
                       <div className="space-y-2">
-                        <div className="text-xs text-slate-400 font-medium">Add Activity</div>
+                        <div className="text-xs text-slate-400 font-medium">Add manual activity (overrides / supplements Apple Watch)</div>
                         <div className="flex flex-wrap gap-1">
                           {ACTIVITY_TYPES.map(at => (
                             <button key={at.id} onClick={() => setActivityForm(f => ({ ...f, type: at.id }))}
@@ -852,36 +884,136 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
       )}
 
       {/* ======== CARDIO TAB ======== */}
-      {view === 'cardio' && (
-        <div className="space-y-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <h3 className="font-semibold text-white mb-1">Zone 2 Cardio (2x/week)</h3>
-            <p className="text-sm text-slate-400 mb-3">{exercisePlan.cardioZone2.description}</p>
-            <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3 mb-3">
-              <div className="text-sm font-medium text-blue-400">How to know you're in Zone 2:</div>
-              <div className="text-sm text-blue-300">{exercisePlan.cardioZone2.howToKnow}</div>
-            </div>
-            <div className="text-sm text-slate-300">
-              <div className="font-medium mb-1">Examples:</div>
-              <div className="flex flex-wrap gap-2">
-                {exercisePlan.cardioZone2.examples.map(ex => (
-                  <span key={ex} className="bg-slate-700 px-3 py-1 rounded-full text-xs text-slate-300">{ex}</span>
-                ))}
+      {view === 'cardio' && (() => {
+        // Build last 14 days of cardio activity from Apple Health
+        const cardioDays = [];
+        const todayD = new Date();
+        for (let i = 0; i < 14; i++) {
+          const d = new Date(todayD);
+          d.setDate(todayD.getDate() - i);
+          const date = toLocalDateStr(d);
+          const m = dailyMetricsByDate?.[date];
+          if (!m?.activity) continue;
+          const a = m.activity;
+          const v = m.vitals || {};
+          const hasActivity = (a.exerciseMinutes || 0) > 0 || (a.distanceMiles || 0) > 0.5 || (a.swimDistanceMeters || 0) > 0;
+          if (!hasActivity) continue;
+          cardioDays.push({
+            date,
+            exerciseMinutes: Math.round(a.exerciseMinutes || 0),
+            distanceMiles: a.distanceMiles || 0,
+            activeKcal: Math.round(a.activeEnergyKcal || 0),
+            swimYards: Math.round(a.swimDistanceMeters || 0),
+            avgHr: v.heartRateAvg ? Math.round(v.heartRateAvg) : null,
+            restHr: v.heartRateRest ? Math.round(v.heartRateRest) : null,
+          });
+        }
+        const targetMin = healthPlan.exerciseTargets.cardioMinutes || 150;
+        const weekPct = Math.min(100, Math.round((appleWeekly.exerciseMinutes / targetMin) * 100));
+
+        return (
+          <div className="space-y-4">
+            {/* Weekly progress vs target */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-white">This Week's Cardio</h3>
+                <span className="text-[10px] bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full">⌚ Apple Watch</span>
               </div>
-              <div className="mt-2 text-slate-400">Duration: {exercisePlan.cardioZone2.duration}</div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className={`text-2xl font-bold ${weekPct >= 100 ? 'text-green-400' : weekPct >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {Math.round(appleWeekly.exerciseMinutes)}
+                </span>
+                <span className="text-sm text-slate-400">/ {targetMin} min</span>
+                <span className="text-xs text-slate-500 ml-auto">{weekPct}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className={`rounded-full h-2 transition-all ${weekPct >= 100 ? 'bg-green-500' : weekPct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                  style={{ width: `${weekPct}%` }} />
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3 text-center text-xs">
+                <div className="p-2 bg-slate-700/30 rounded">
+                  <div className="text-base font-bold text-white">{appleWeekly.distanceMiles.toFixed(1)}</div>
+                  <div className="text-slate-500">miles</div>
+                </div>
+                <div className="p-2 bg-slate-700/30 rounded">
+                  <div className="text-base font-bold text-white">{Math.round(appleWeekly.activeKcal).toLocaleString()}</div>
+                  <div className="text-slate-500">active kcal</div>
+                </div>
+                <div className="p-2 bg-slate-700/30 rounded">
+                  <div className="text-base font-bold text-white">{Math.round(appleWeekly.swimYards).toLocaleString()}</div>
+                  <div className="text-slate-500">swim yds</div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <h3 className="font-semibold text-white mb-1">VO2 Max Intervals (1x/week)</h3>
-            <p className="text-sm text-slate-400 mb-3">This keeps you from becoming the person who gets winded.</p>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between p-2 bg-slate-700/50 rounded"><span className="text-slate-300">Warm up</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.warmup}</span></div>
-              <div className="flex justify-between p-2 bg-orange-900/30 rounded"><span className="font-medium text-orange-300">Intervals</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.intervals}</span></div>
-              <div className="flex justify-between p-2 bg-slate-700/50 rounded"><span className="text-slate-300">Cool down</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.cooldown}</span></div>
+
+            {/* Recent cardio days from Apple Watch */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <h3 className="text-sm font-semibold text-white mb-3">Recent Cardio (last 14 days)</h3>
+              {cardioDays.length === 0 ? (
+                <p className="text-sm text-slate-500">No cardio activity synced yet — go for a walk or swim and check back.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {cardioDays.map(d => {
+                    const dateLabel = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    return (
+                      <div key={d.date} className="flex items-center justify-between p-2.5 bg-slate-700/30 rounded-lg text-sm">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-white">{dateLabel}</div>
+                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-2">
+                            {d.exerciseMinutes > 0 && <span>{d.exerciseMinutes} min cardio</span>}
+                            {d.distanceMiles >= 0.1 && <span>{d.distanceMiles.toFixed(2)} mi</span>}
+                            {d.swimYards > 0 && <span className="text-cyan-400">🏊 {d.swimYards.toLocaleString()} yds</span>}
+                            {d.avgHr && <span>avg HR {d.avgHr}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs">
+                          <div className="text-orange-400 font-medium">{d.activeKcal} kcal</div>
+                          {d.restHr && <div className="text-slate-500">RHR {d.restHr}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+
+            {/* Plan reference (collapsed by default — you know this stuff) */}
+            <details className="bg-slate-800/50 rounded-xl border border-slate-700">
+              <summary className="cursor-pointer p-4 text-sm font-medium text-slate-300 hover:text-white">
+                Zone 2 + VO2 Max plan reference
+              </summary>
+              <div className="p-4 pt-0 space-y-3">
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <h4 className="font-semibold text-white text-sm mb-1">Zone 2 Cardio (2x/week)</h4>
+                  <p className="text-xs text-slate-400 mb-2">{exercisePlan.cardioZone2.description}</p>
+                  <div className="bg-blue-900/30 border border-blue-700 rounded p-2 mb-2">
+                    <div className="text-xs font-medium text-blue-400">How to know you're in Zone 2:</div>
+                    <div className="text-xs text-blue-300">{exercisePlan.cardioZone2.howToKnow}</div>
+                  </div>
+                  <div className="text-xs text-slate-300">
+                    <div className="font-medium mb-1">Examples:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {exercisePlan.cardioZone2.examples.map(ex => (
+                        <span key={ex} className="bg-slate-700 px-2 py-0.5 rounded-full text-xs text-slate-300">{ex}</span>
+                      ))}
+                    </div>
+                    <div className="mt-1 text-slate-500">Duration: {exercisePlan.cardioZone2.duration}</div>
+                  </div>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <h4 className="font-semibold text-white text-sm mb-1">VO2 Max Intervals (1x/week)</h4>
+                  <p className="text-xs text-slate-400 mb-2">This keeps you from becoming the person who gets winded.</p>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between p-1.5 bg-slate-700/50 rounded"><span className="text-slate-300">Warm up</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.warmup}</span></div>
+                    <div className="flex justify-between p-1.5 bg-orange-900/30 rounded"><span className="font-medium text-orange-300">Intervals</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.intervals}</span></div>
+                    <div className="flex justify-between p-1.5 bg-slate-700/50 rounded"><span className="text-slate-300">Cool down</span><span className="text-slate-400">{exercisePlan.vo2MaxIntervals.cooldown}</span></div>
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======== SWIMMING TAB ======== */}
       {view === 'swimming' && (
