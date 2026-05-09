@@ -237,6 +237,54 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   const recentSwims = (data?.swimmingLog || []).slice(0, 10);
   const totalLapsAllTime = (data?.swimmingLog || []).reduce((sum, s) => sum + (s.laps || 0), 0);
 
+  // Build the 7 dates of the currently-displayed week (Sun-Sat) so we can
+  // aggregate Apple Health metrics for that range.
+  const weekDates = useMemo(() => {
+    const today = new Date();
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - today.getDay() + (weekOffset * 7));
+    const out = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
+      out.push(toLocalDateStr(d));
+    }
+    return out;
+  }, [weekOffset]);
+
+  // Aggregate Apple Health metrics across the displayed week.
+  const appleWeekly = useMemo(() => {
+    const t = { steps: 0, exerciseMinutes: 0, distanceMiles: 0, swimYards: 0,
+                swimStrokes: 0, activeKcal: 0, daylightMinutes: 0, daysWithData: 0 };
+    for (const date of weekDates) {
+      const m = dailyMetricsByDate?.[date];
+      if (!m?.activity) continue;
+      t.daysWithData++;
+      t.steps += m.activity.steps || 0;
+      t.exerciseMinutes += m.activity.exerciseMinutes || 0;
+      t.distanceMiles += m.activity.distanceMiles || 0;
+      t.swimYards += m.activity.swimDistanceMeters || 0; // HAE labels unit "yd"
+      t.swimStrokes += m.activity.swimStrokes || 0;
+      t.activeKcal += m.activity.activeEnergyKcal || 0;
+      t.daylightMinutes += m.activity.daylightMinutes || 0;
+    }
+    return t;
+  }, [weekDates, dailyMetricsByDate]);
+
+  // List of recent days with Apple Health swim data, newest first.
+  const appleSwims = useMemo(() => {
+    return Object.entries(dailyMetricsByDate || {})
+      .filter(([, m]) => m?.activity?.swimDistanceMeters > 0)
+      .map(([date, m]) => ({
+        date,
+        yards: Math.round(m.activity.swimDistanceMeters),
+        strokes: Math.round(m.activity.swimStrokes || 0),
+        poolTempF: m.environment?.underwaterTempF,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10);
+  }, [dailyMetricsByDate]);
+
   // Fitness events from shared appointments data
   const fitnessEvents = (data?.appointments || [])
     .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr)
@@ -332,15 +380,27 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
 
           {/* Weekly Totals Summary */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">Weekly Totals</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Weekly Totals</h3>
+              {appleWeekly.daysWithData > 0 && (
+                <span className="text-[10px] bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full" title={`${appleWeekly.daysWithData} of 7 days have synced data`}>
+                  ⌚ {appleWeekly.daysWithData}/7 days synced
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Cardio Minutes — sum of Apple Watch exercise minutes */}
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Cardio Minutes</div>
-                <div className="text-lg font-bold text-white">{weeklyTotals.cardioMinutes}</div>
-                <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.cardioMinutes}</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Cardio Minutes</div>
+                  <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(appleWeekly.exerciseMinutes)}</div>
+                <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.cardioMinutes} min</div>
               </div>
+              {/* Zone 2 — manual input, Apple doesn't track HR zones natively */}
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Zone 2</div>
+                <div className="text-xs text-slate-400 mb-1">Zone 2 <span className="text-slate-600">(manual)</span></div>
                 <div className="text-lg font-bold text-white mb-2">
                   <input
                     type="number"
@@ -357,38 +417,68 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                 </div>
                 <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.zone2Minutes}</div>
               </div>
+              {/* Intervals — manual workoutDetails count */}
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Intervals</div>
+                <div className="text-xs text-slate-400 mb-1">Intervals <span className="text-slate-600">(manual)</span></div>
                 <div className="text-lg font-bold text-white">{weeklyTotals.intervalsCount}</div>
                 <div className="text-xs text-slate-500">Sessions</div>
               </div>
+              {/* Strength Sessions — manual */}
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Strength Sessions</div>
+                <div className="text-xs text-slate-400 mb-1">Strength <span className="text-slate-600">(manual)</span></div>
                 <div className="text-lg font-bold text-white">{weeklyTotals.strengthDays}</div>
                 <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.strengthDays}</div>
               </div>
+              {/* Steps — Apple weekly sum, with avg/day for context */}
               <div className="bg-slate-700/50 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-xs text-slate-400">Steps</div>
-                  {stepsSource === 'apple' && (
-                    <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full" title="Synced from Apple Health">⌚ synced</span>
-                  )}
+                  <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>
                 </div>
-                <div className="text-lg font-bold text-white">{todaySteps ? todaySteps.toLocaleString() : '—'}</div>
-                {stepsSource !== 'apple' && (
-                  <div className="flex gap-1 mt-1">
-                    <input type="number" placeholder="Steps" value={stepsInput} onChange={e => setStepsInput(e.target.value)}
-                      className="w-20 bg-slate-600 border border-slate-500 rounded px-1 py-0.5 text-white text-xs" />
-                    <button onClick={() => { if(stepsInput) { saveStepsEntry(toLocalDateStr(), stepsInput); setStepsInput(''); }}}
-                      className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded">+</button>
-                  </div>
-                )}
-                <div className="text-xs text-slate-500">Target: 10,000</div>
+                <div className="text-lg font-bold text-white">{Math.round(appleWeekly.steps).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">
+                  {appleWeekly.daysWithData > 0
+                    ? `Avg ${Math.round(appleWeekly.steps / appleWeekly.daysWithData).toLocaleString()}/day · target 10k`
+                    : 'Target 10,000/day'}
+                </div>
               </div>
+              {/* Swim Yards — Apple weekly sum */}
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Swim Yards</div>
-                <div className="text-lg font-bold text-white">{weeklyTotals.swimYards}</div>
-                <div className="text-xs text-slate-500">Distance</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Swim Yards</div>
+                  {appleWeekly.swimYards > 0 && <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>}
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(appleWeekly.swimYards).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">
+                  {appleWeekly.swimYards > 0 ? `${Math.round(appleWeekly.swimStrokes).toLocaleString()} strokes` : 'No swims this week'}
+                </div>
+              </div>
+              {/* Active Cal — Apple weekly sum */}
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Active Cal</div>
+                  <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(appleWeekly.activeKcal).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">kcal burned</div>
+              </div>
+              {/* Distance — Apple weekly sum */}
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Distance</div>
+                  <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>
+                </div>
+                <div className="text-lg font-bold text-white">{appleWeekly.distanceMiles.toFixed(1)}</div>
+                <div className="text-xs text-slate-500">miles walked/run</div>
+              </div>
+              {/* Daylight — Apple weekly sum */}
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Daylight</div>
+                  <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(appleWeekly.daylightMinutes)}</div>
+                <div className="text-xs text-slate-500">minutes outside</div>
               </div>
             </div>
           </div>
@@ -796,22 +886,83 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
       {/* ======== SWIMMING TAB ======== */}
       {view === 'swimming' && (
         <div className="space-y-4">
+          {/* Apple Watch swim summary — replaces the old manual-only counter */}
           <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-700/50 rounded-xl p-5">
-            <h3 className="font-semibold text-white mb-2">🏊 Swimming</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-white">🏊 Swimming</h3>
+              {appleSwims.length > 0 && (
+                <span className="text-[10px] bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded-full">⌚ Apple Watch</span>
+              )}
+            </div>
             <p className="text-sm text-slate-300 mb-3">{exercisePlan.swimming.description}</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-800/50 p-3 rounded-lg text-center">
-                <div className="text-2xl font-bold text-cyan-400">{totalLapsAllTime.toLocaleString()}</div>
-                <div className="text-xs text-slate-400">Total laps</div>
+                <div className="text-2xl font-bold text-cyan-400">{Math.round(appleWeekly.swimYards).toLocaleString()}</div>
+                <div className="text-xs text-slate-400">This week (yds)</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded-lg text-center">
-                <div className="text-2xl font-bold text-cyan-400">{recentSwims.length}</div>
-                <div className="text-xs text-slate-400">Sessions</div>
+                <div className="text-2xl font-bold text-cyan-400">{appleSwims.length}</div>
+                <div className="text-xs text-slate-400">Recent sessions</div>
+              </div>
+              <div className="bg-slate-800/50 p-3 rounded-lg text-center">
+                <div className="text-2xl font-bold text-cyan-400">
+                  {appleSwims.reduce((s, x) => s + x.yards, 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-slate-400">Total yds (last 10)</div>
               </div>
             </div>
           </div>
-          <button onClick={() => setShowSwimModal(true)}
-            className="w-full bg-cyan-600 text-white py-3 rounded-xl font-medium text-sm hover:bg-cyan-500 transition-colors">+ Log Swim Session</button>
+
+          {/* Today's Apple Watch swim, surfaced prominently if it happened */}
+          {appleSwims[0]?.date === todayStr && (
+            <div className="bg-cyan-900/30 border border-cyan-700/50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-white">Today's Swim</h3>
+                <span className="text-xs bg-cyan-700/40 text-cyan-300 px-2 py-0.5 rounded-full">just now</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-xl font-bold text-white">{appleSwims[0].yards.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400">yards</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-white">{appleSwims[0].strokes.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400">strokes</div>
+                </div>
+                {appleSwims[0].poolTempF != null && (
+                  <div>
+                    <div className="text-xl font-bold text-white">{appleSwims[0].poolTempF.toFixed(1)}°F</div>
+                    <div className="text-xs text-slate-400">pool temp</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Apple Watch swims */}
+          {appleSwims.length > 0 && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+              <h3 className="font-semibold text-white mb-3">Recent Swims <span className="text-xs text-slate-500 font-normal">(from Apple Watch)</span></h3>
+              <div className="space-y-2">
+                {appleSwims.map(s => (
+                  <div key={s.date} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg text-sm">
+                    <div>
+                      <div className="font-medium text-white">{s.yards.toLocaleString()} yds</div>
+                      <div className="text-xs text-slate-400">
+                        {new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {s.strokes > 0 && ` · ${s.strokes.toLocaleString()} strokes`}
+                      </div>
+                    </div>
+                    {s.poolTempF != null && (
+                      <div className="text-xs text-slate-500">{s.poolTempF.toFixed(0)}°F</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Swim plan reference */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-3">Swim Workouts</h3>
             <div className="space-y-2">
@@ -823,28 +974,37 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               ))}
             </div>
           </div>
+
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
             <h3 className="font-semibold text-white mb-2">Why Swimming?</h3>
             <div className="flex flex-wrap gap-2">
               {exercisePlan.swimming.benefits.map(b => (<span key={b} className="bg-cyan-900/30 text-cyan-300 px-3 py-1 rounded-full text-xs">{b}</span>))}
             </div>
           </div>
-          {recentSwims.length > 0 && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-              <h3 className="font-semibold text-white mb-3">Recent Swims</h3>
-              <div className="space-y-2">
-                {recentSwims.map(s => (
-                  <div key={s.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg text-sm">
-                    <div>
-                      <div className="font-medium text-white">{s.laps ? `${s.laps} laps` : `${s.distance}m`}</div>
-                      <div className="text-xs text-slate-400">{new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{s.duration && ` · ${s.duration} min`}</div>
+
+          {/* Manual swim log — kept for legacy entries and offline tracking */}
+          <details className="bg-slate-800/50 rounded-xl border border-slate-700">
+            <summary className="cursor-pointer p-4 text-sm text-slate-400 hover:text-slate-200">
+              Manual swim log {recentSwims.length > 0 && <span className="ml-2 text-xs text-slate-500">({recentSwims.length} entries · {totalLapsAllTime} laps)</span>}
+            </summary>
+            <div className="p-4 pt-0 space-y-3">
+              <p className="text-xs text-slate-500">For sessions not picked up by your Apple Watch (e.g., open water without GPS).</p>
+              <button onClick={() => setShowSwimModal(true)}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-sm">+ Log Manual Swim</button>
+              {recentSwims.length > 0 && (
+                <div className="space-y-1.5">
+                  {recentSwims.map(s => (
+                    <div key={s.id} className="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg text-xs">
+                      <div>
+                        <span className="text-slate-300">{s.laps ? `${s.laps} laps` : `${s.distance}m`}</span>
+                        <span className="text-slate-500 ml-2">{new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{s.duration && ` · ${s.duration} min`}</span>
+                      </div>
                     </div>
-                    {s.notes && <div className="text-xs text-slate-500 text-right max-w-[120px] truncate">{s.notes}</div>}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </details>
         </div>
       )}
 
