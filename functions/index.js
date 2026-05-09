@@ -35,8 +35,14 @@ const METRIC_MAP = {
   basal_energy_burned:                { path: ['activity', 'basalEnergyKcal'],              agg: 'sum' },
   apple_exercise_time:                { path: ['activity', 'exerciseMinutes'],              agg: 'sum' },
   apple_stand_hour:                   { path: ['activity', 'standHours'],                   agg: 'sum' },
+  apple_stand_time:                   { path: ['activity', 'standMinutes'],                 agg: 'sum' },
   flights_climbed:                    { path: ['activity', 'flightsClimbed'],               agg: 'sum' },
   time_in_daylight:                   { path: ['activity', 'daylightMinutes'],              agg: 'sum' },
+
+  // Swimming
+  swimming_distance:                  { path: ['activity', 'swimDistanceMeters'],           agg: 'sum' },
+  swimming_stroke_count:              { path: ['activity', 'swimStrokes'],                  agg: 'sum' },
+  underwater_temperature:             { path: ['environment', 'underwaterTempF'],           agg: 'avg' },
 
   // Walking quality (gait analysis from iPhone/Apple Watch)
   walking_speed:                      { path: ['gait', 'walkingSpeed'],                     agg: 'avg' },
