@@ -9,7 +9,21 @@ import { toLocalDateStr } from '../utils/dateUtils';
 //   onCancel:  () => void
 //   onDelete:  optional async () => void — only shown in edit mode
 
-const COMMON_SOURCES = ['Labcorp', 'NIH Clinical Center', 'Quest', 'H&H Labs', 'Atrium Health'];
+const COMMON_SOURCES = [
+  'Labcorp',
+  'Quest Diagnostics',
+  'NIH Clinical Center',
+  'Atrium Health',
+  'Cone Health',
+  'HIMS',
+  'Hims & Hers',
+  'H&H Labs',
+  'Function Health',
+  'Marek Health',
+  'Inside Tracker',
+  'Boston Heart',
+  'Other',
+];
 const FLAGS = ['', 'high', 'low', 'critical', 'abnormal'];
 
 function emptyRow() {
@@ -99,9 +113,9 @@ export default function LabPanelForm({ initial, onSubmit, onCancel, onDelete }) 
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
             </label>
             <label className="block">
-              <span className="text-xs text-slate-400 block mb-1">Source</span>
+              <span className="text-xs text-slate-400 block mb-1">Source <span className="text-slate-500">(pick or type any)</span></span>
               <input type="text" list="lab-sources" value={source} onChange={e => setSource(e.target.value)}
-                placeholder="Labcorp / NIH / etc."
+                placeholder="Labcorp, NIH, HIMS, Other…"
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-500" />
               <datalist id="lab-sources">
                 {COMMON_SOURCES.map(s => <option key={s} value={s} />)}
