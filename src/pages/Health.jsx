@@ -148,6 +148,7 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'weight', label: 'Weight' },
   { id: 'vitals', label: 'Vitals' },
+  { id: 'activity', label: 'Activity' },
   { id: 'fitness', label: 'Fitness' },
   { id: 'sleep', label: 'Sleep' },
   { id: 'lipids', label: 'Lipids' },
@@ -155,7 +156,20 @@ const TABS = [
   { id: 'other', label: 'Other' },
 ];
 
-export default function Health({ data, addWeight, addLabResult, ...rest }) {
+// Pull a time series from dailyMetricsByDate for a dotted path like 'vitals.hrv'.
+function appleSeries(dailyMetricsByDate, path, days = 90) {
+  if (!dailyMetricsByDate) return [];
+  const keys = path.split('.');
+  const out = [];
+  for (const [date, doc] of Object.entries(dailyMetricsByDate)) {
+    let v = doc;
+    for (const k of keys) v = v?.[k];
+    if (v != null && typeof v === 'number') out.push({ date, value: v });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
+}
+
+export default function Health({ data, addWeight, addLabResult, dailyMetricsByDate, ...rest }) {
   const [view, setView] = useState('overview');
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [weightForm, setWeightForm] = useState({ date: toLocalDateStr(), weight: '', bodyFat: '', waist: '', notes: '' });
@@ -201,9 +215,24 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
   const bodyFatData = useMemo(() => (data?.weightEntries || []).filter(e => e.bodyFat).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.bodyFat })), [data?.weightEntries]);
   const waistData = useMemo(() => (data?.weightEntries || []).filter(e => e.waist).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: parseFloat(e.waist) })), [data?.weightEntries]);
   const bpData = useMemo(() => (data?.bpEntries || []).filter(e => e.systolic).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.systolic, diastolic: e.diastolic })), [data?.bpEntries]);
-  const hrData = useMemo(() => (data?.hrEntries || []).filter(e => e.bpm).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.bpm })), [data?.hrEntries]);
+  // Resting HR: prefer Apple Watch (vitals.heartRateRest) — far more accurate than manual entry.
+  const hrApple = useMemo(() => appleSeries(dailyMetricsByDate, 'vitals.heartRateRest'), [dailyMetricsByDate]);
+  const hrManual = useMemo(() => (data?.hrEntries || []).filter(e => e.bpm).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.bpm })), [data?.hrEntries]);
+  const hrData = hrApple.length > 0 ? hrApple : hrManual;
+  // VO2 max: prefer Apple Watch (vitals.vo2max), fall back to manual.
+  const vo2Apple = useMemo(() => appleSeries(dailyMetricsByDate, 'fitness.vo2max'), [dailyMetricsByDate]);
+  const vo2Manual = useMemo(() => (data?.vo2Entries || []).filter(e => e.value).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.value })), [data?.vo2Entries]);
+  const vo2Data = vo2Apple.length > 0 ? vo2Apple : vo2Manual;
   const runPaceData = useMemo(() => (data?.runEntries || []).filter(e => e.pace).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.pace })), [data?.runEntries]);
-  const vo2Data = useMemo(() => (data?.vo2Entries || []).filter(e => e.value).sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ date: e.date, value: e.value })), [data?.vo2Entries]);
+  // Apple-only series (no manual fallback)
+  const hrvData = useMemo(() => appleSeries(dailyMetricsByDate, 'vitals.hrv'), [dailyMetricsByDate]);
+  const stepsData = useMemo(() => appleSeries(dailyMetricsByDate, 'activity.steps'), [dailyMetricsByDate]);
+  const exerciseMinData = useMemo(() => appleSeries(dailyMetricsByDate, 'activity.exerciseMinutes'), [dailyMetricsByDate]);
+  const distanceData = useMemo(() => appleSeries(dailyMetricsByDate, 'activity.distanceMiles'), [dailyMetricsByDate]);
+  const activeKcalData = useMemo(() => appleSeries(dailyMetricsByDate, 'activity.activeEnergyKcal'), [dailyMetricsByDate]);
+  const daylightData = useMemo(() => appleSeries(dailyMetricsByDate, 'activity.daylightMinutes'), [dailyMetricsByDate]);
+  const spo2Data = useMemo(() => appleSeries(dailyMetricsByDate, 'vitals.spo2'), [dailyMetricsByDate]);
+  const respData = useMemo(() => appleSeries(dailyMetricsByDate, 'vitals.respiratoryRate'), [dailyMetricsByDate]);
 
   // Lab trends
   const apoBTrend = useMemo(() => getTrend('ApoB'), []);
@@ -366,20 +395,45 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
       {/* === VITALS === */}
       {view === 'vitals' && (
         <div className="space-y-4">
-          <ChartCard title="Blood Pressure (Systolic)" emoji="❤️" data={bpData} goalValue={120} color="#ec4899" unit="mmHg" />
+          <ChartCard title="Blood Pressure (Systolic) — manual" emoji="❤️" data={bpData} goalValue={120} color="#ec4899" unit="mmHg" />
           <BloodPressureForm save={rest?.save || (() => {})} currentEntries={data?.bpEntries || []} />
-          <ChartCard title="Resting Heart Rate" emoji="💓" data={hrData} goalValue={60} color="#f97316" unit="bpm" />
-          <RestingHeartRateForm save={rest?.save || (() => {})} currentEntries={data?.hrEntries || []} />
+          <ChartCard title={`Resting Heart Rate${hrApple.length > 0 ? ' — ⌚ Apple Watch' : ' — manual'}`} emoji="💓" data={hrData} goalValue={60} color="#f97316" unit="bpm" />
+          {hrApple.length === 0 && <RestingHeartRateForm save={rest?.save || (() => {})} currentEntries={data?.hrEntries || []} />}
+          {hrvData.length > 0 && (
+            <ChartCard title="Heart Rate Variability — ⌚ Apple Watch" emoji="💚" data={hrvData} goalValue={30} color="#10b981" unit=" ms" />
+          )}
+          {spo2Data.length > 0 && (
+            <ChartCard title="Blood Oxygen (SpO₂) — ⌚ Apple Watch" emoji="🫁" data={spo2Data.map(d => ({ ...d, value: Math.round(d.value * 100) }))} goalValue={95} color="#3b82f6" unit="%" />
+          )}
+          {respData.length > 0 && (
+            <ChartCard title="Respiratory Rate — ⌚ Apple Watch" emoji="🌬️" data={respData} goalValue={16} color="#06b6d4" unit=" /min" />
+          )}
+        </div>
+      )}
+
+      {/* === ACTIVITY (new tab — Apple Health only) === */}
+      {view === 'activity' && (
+        <div className="space-y-4">
+          {stepsData.length === 0 && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-5 text-center text-sm text-slate-400">
+              No Apple Health activity synced yet. Run a sync from Health Auto Export and refresh.
+            </div>
+          )}
+          {stepsData.length > 0 && <ChartCard title="Steps — ⌚ Apple Watch" emoji="👟" data={stepsData} goalValue={10000} color="#3b82f6" unit="" />}
+          {exerciseMinData.length > 0 && <ChartCard title="Exercise Minutes — ⌚ Apple Watch" emoji="🏃" data={exerciseMinData} goalValue={30} color="#22c55e" unit=" min" />}
+          {activeKcalData.length > 0 && <ChartCard title="Active Calories — ⌚ Apple Watch" emoji="🔥" data={activeKcalData} goalValue={500} color="#f97316" unit=" kcal" />}
+          {distanceData.length > 0 && <ChartCard title="Distance — ⌚ Apple Watch" emoji="🚶" data={distanceData} goalValue={3} color="#8b5cf6" unit=" mi" />}
+          {daylightData.length > 0 && <ChartCard title="Time in Daylight — ⌚ Apple Watch" emoji="☀️" data={daylightData} goalValue={120} color="#fbbf24" unit=" min" />}
         </div>
       )}
 
       {/* === FITNESS === */}
       {view === 'fitness' && (
         <div className="space-y-4">
-          <ChartCard title="Run Pace" emoji="🏃" data={runPaceData} goalValue={9.0} color="#10b981" unit="min/mile" />
+          <ChartCard title="Run Pace — manual" emoji="🏃" data={runPaceData} goalValue={9.0} color="#10b981" unit="min/mile" />
           <RunPaceForm save={rest?.save || (() => {})} currentEntries={data?.runEntries || []} />
-          <ChartCard title="VO2 Max" emoji="💨" data={vo2Data} goalValue={40} color="#06b6d4" unit="ml/kg/min" />
-          <VO2MaxForm save={rest?.save || (() => {})} currentEntries={data?.vo2Entries || []} />
+          <ChartCard title={`VO2 Max${vo2Apple.length > 0 ? ' — ⌚ Apple Watch' : ' — manual'}`} emoji="💨" data={vo2Data} goalValue={40} color="#06b6d4" unit="ml/kg/min" />
+          {vo2Apple.length === 0 && <VO2MaxForm save={rest?.save || (() => {})} currentEntries={data?.vo2Entries || []} />}
         </div>
       )}
 
@@ -388,26 +442,48 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">😴 Sleep Trends</h2>
           {(() => {
-            const sleepLog = data?.sleepLog || {};
-            const entries = Object.entries(sleepLog)
+            // Prefer Apple Watch sleep (dailyMetricsByDate[date].sleep) over manual sleepLog.
+            // Build a unified entries array of [date, { hours, stages?, source }].
+            const apple = Object.entries(dailyMetricsByDate || {})
+              .filter(([, doc]) => doc?.sleep?.hoursTotal)
+              .map(([date, doc]) => [date, { hours: doc.sleep.hoursTotal, stages: doc.sleep.stages, source: 'apple' }]);
+            const manual = Object.entries(data?.sleepLog || {})
               .filter(([_, v]) => v.hours)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .slice(-30);
+              .map(([date, v]) => [date, { hours: v.hours, quality: v.quality, bedtime: v.bedtime, wakeTime: v.wakeTime, source: 'manual' }]);
+            // Apple wins for a given date if both exist
+            const byDate = new Map();
+            for (const [d, v] of manual) byDate.set(d, v);
+            for (const [d, v] of apple) byDate.set(d, v);
+            const entries = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-30);
 
             if (entries.length === 0) {
-              return <p className="text-sm text-slate-400">No sleep data logged yet. Use the Sleep Tracker on the Dashboard to start.</p>;
+              return <p className="text-sm text-slate-400">No sleep data yet. Apple Watch sleep tracking is the easiest source — wear it overnight and run a sync.</p>;
             }
 
-            const avg = (entries.reduce((s, [_, v]) => s + v.hours, 0) / entries.length).toFixed(1);
-            const avgQuality = entries.filter(([_, v]) => v.quality).length > 0
-              ? (entries.reduce((s, [_, v]) => s + (v.quality || 0), 0) / entries.filter(([_, v]) => v.quality).length).toFixed(1)
+            const avg = (entries.reduce((s, [, v]) => s + v.hours, 0) / entries.length).toFixed(1);
+            const qualityEntries = entries.filter(([, v]) => v.quality);
+            const avgQuality = qualityEntries.length > 0
+              ? (qualityEntries.reduce((s, [, v]) => s + v.quality, 0) / qualityEntries.length).toFixed(1)
               : null;
-            const best = Math.max(...entries.map(([_, v]) => v.hours)).toFixed(1);
-            const worst = Math.min(...entries.map(([_, v]) => v.hours)).toFixed(1);
-            const daysOver7 = entries.filter(([_, v]) => v.hours >= 7).length;
+            const best = Math.max(...entries.map(([, v]) => v.hours)).toFixed(1);
+            const worst = Math.min(...entries.map(([, v]) => v.hours)).toFixed(1);
+            const daysOver7 = entries.filter(([, v]) => v.hours >= 7).length;
+            const appleCount = entries.filter(([, v]) => v.source === 'apple').length;
+            // Average stage breakdown for Apple-sourced nights
+            const stageNights = entries.filter(([, v]) => v.stages);
+            const avgStages = stageNights.length > 0 ? {
+              deep: (stageNights.reduce((s, [, v]) => s + (v.stages.deep || 0), 0) / stageNights.length).toFixed(1),
+              rem: (stageNights.reduce((s, [, v]) => s + (v.stages.rem || 0), 0) / stageNights.length).toFixed(1),
+              core: (stageNights.reduce((s, [, v]) => s + (v.stages.core || 0), 0) / stageNights.length).toFixed(1),
+            } : null;
 
             return (
               <>
+                {appleCount > 0 && (
+                  <div className="text-xs text-slate-500 flex items-center gap-2">
+                    <span className="bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full">⌚ {appleCount}/{entries.length} nights from Apple Watch</span>
+                  </div>
+                )}
                 {/* Stats row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-slate-800 rounded-xl border border-slate-700 p-3">
@@ -429,6 +505,27 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                     <div className="text-xl font-bold text-green-400">{daysOver7}/{entries.length}</div>
                   </div>
                 </div>
+
+                {/* Sleep stage breakdown — only when Apple Watch data exists */}
+                {avgStages && (
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                    <h3 className="text-sm font-semibold text-white mb-3">Avg Sleep Stages <span className="text-xs text-slate-500 font-normal">(⌚ Apple Watch · {stageNights.length} nights)</span></h3>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg p-3">
+                        <div className="text-2xl font-bold text-purple-300">{avgStages.deep}</div>
+                        <div className="text-xs text-purple-400">Deep (hrs)</div>
+                      </div>
+                      <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3">
+                        <div className="text-2xl font-bold text-blue-300">{avgStages.rem}</div>
+                        <div className="text-xs text-blue-400">REM (hrs)</div>
+                      </div>
+                      <div className="bg-slate-700/50 rounded-lg p-3">
+                        <div className="text-2xl font-bold text-slate-300">{avgStages.core}</div>
+                        <div className="text-xs text-slate-400">Core (hrs)</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Chart */}
                 <ChartCard
@@ -458,11 +555,20 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
                   <div className="space-y-1.5">
                     {entries.slice(-10).reverse().map(([date, v]) => (
                       <div key={date} className="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg text-sm">
-                        <span className="text-slate-400">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                          {v.source === 'apple' && <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full">⌚</span>}
+                        </div>
                         <div className="flex items-center gap-3">
                           <span className={`font-medium ${v.hours >= 7 ? 'text-green-400' : v.hours >= 6 ? 'text-yellow-400' : 'text-red-400'}`}>
                             {v.hours.toFixed(1)} hrs
                           </span>
+                          {v.stages && (
+                            <span className="text-[10px] text-slate-500" title="Deep · REM · Core">
+                              {v.stages.deep != null && `D ${v.stages.deep.toFixed(1)} · `}
+                              {v.stages.rem != null && `R ${v.stages.rem.toFixed(1)}`}
+                            </span>
+                          )}
                           {v.bedtime && <span className="text-xs text-slate-500">{v.bedtime} → {v.wakeTime}</span>}
                           {v.quality && <span className="text-xs text-yellow-400">{'★'.repeat(v.quality)}{'☆'.repeat(5 - v.quality)}</span>}
                         </div>
