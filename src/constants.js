@@ -69,18 +69,18 @@ export const MEAL_TYPES = [
 // Common meal presets based on Mike's eating patterns
 export const MEAL_PRESETS = [
   // Lunch options (Mike usually has these for lunch)
-  { id: 'oatmeal-fruit', label: 'Oatmeal & Fruit', type: 'lunch', emoji: '🥣', description: 'Oatmeal with mixed berries', tags: ['whole-grain', 'fiber', 'fruit'] },
-  { id: 'yogurt-fruit', label: 'Yogurt & Fruit', type: 'lunch', emoji: '🫐', description: 'Greek yogurt with fresh fruit', tags: ['protein', 'probiotics', 'fruit'] },
-  { id: 'salad-chicken', label: 'Chicken Salad', type: 'lunch', emoji: '🥗', description: 'Mixed greens with grilled chicken', tags: ['protein', 'vegetables'] },
+  { id: 'oatmeal-fruit', label: 'Oatmeal & Fruit', type: 'lunch', emoji: '🥣', description: 'Oatmeal with mixed berries', tags: ['whole-grain', 'fiber', 'fruit'], calories: 350, protein: 10, carbs: 55, fat: 8, fiber: 8 },
+  { id: 'yogurt-fruit', label: 'Yogurt & Fruit', type: 'lunch', emoji: '🫐', description: 'Greek yogurt with fresh fruit', tags: ['protein', 'probiotics', 'fruit'], calories: 280, protein: 20, carbs: 35, fat: 6, fiber: 3 },
+  { id: 'salad-chicken', label: 'Chicken Salad', type: 'lunch', emoji: '🥗', description: 'Mixed greens with grilled chicken', tags: ['protein', 'vegetables'], calories: 420, protein: 38, carbs: 15, fat: 22, fiber: 5 },
   // Dinner options
-  { id: 'salad-dinner', label: 'Dinner Salad', type: 'dinner', emoji: '🥗', description: 'Large salad with olive oil dressing', tags: ['vegetables', 'healthy-fats'] },
-  { id: 'grilled-fish', label: 'Grilled Fish & Veggies', type: 'dinner', emoji: '🐟', description: 'Grilled salmon or white fish with roasted vegetables', tags: ['protein', 'omega-3', 'vegetables'] },
-  { id: 'chicken-veggies', label: 'Chicken & Vegetables', type: 'dinner', emoji: '🍗', description: 'Grilled chicken with steamed or roasted vegetables', tags: ['protein', 'vegetables'] },
-  { id: 'ate-out', label: 'Ate Out', type: 'dinner', emoji: '🍽️', description: 'Restaurant meal', tags: ['eating-out'] },
+  { id: 'salad-dinner', label: 'Dinner Salad', type: 'dinner', emoji: '🥗', description: 'Large salad with olive oil dressing', tags: ['vegetables', 'healthy-fats'], calories: 320, protein: 8, carbs: 20, fat: 24, fiber: 7 },
+  { id: 'grilled-fish', label: 'Grilled Fish & Veggies', type: 'dinner', emoji: '🐟', description: 'Grilled salmon or white fish with roasted vegetables', tags: ['protein', 'omega-3', 'vegetables'], calories: 480, protein: 42, carbs: 18, fat: 26, fiber: 5 },
+  { id: 'chicken-veggies', label: 'Chicken & Vegetables', type: 'dinner', emoji: '🍗', description: 'Grilled chicken with steamed or roasted vegetables', tags: ['protein', 'vegetables'], calories: 450, protein: 40, carbs: 20, fat: 22, fiber: 6 },
+  { id: 'ate-out', label: 'Ate Out', type: 'dinner', emoji: '🍽️', description: 'Restaurant meal', tags: ['eating-out'], calories: 700, protein: 30, carbs: 60, fat: 35, fiber: 4 },
   // Snacks
-  { id: 'nuts', label: 'Mixed Nuts', type: 'snack', emoji: '🥜', description: 'Handful of almonds, walnuts, or mixed nuts', tags: ['healthy-fats', 'protein'] },
-  { id: 'fruit-snack', label: 'Fresh Fruit', type: 'snack', emoji: '🍎', description: 'Apple, banana, or berries', tags: ['fruit', 'fiber'] },
-  { id: 'hummus-veggies', label: 'Hummus & Veggies', type: 'snack', emoji: '🥕', description: 'Hummus with carrots, celery, or peppers', tags: ['fiber', 'protein'] },
+  { id: 'nuts', label: 'Mixed Nuts', type: 'snack', emoji: '🥜', description: 'Handful of almonds, walnuts, or mixed nuts', tags: ['healthy-fats', 'protein'], calories: 180, protein: 6, carbs: 6, fat: 16, fiber: 2 },
+  { id: 'fruit-snack', label: 'Fresh Fruit', type: 'snack', emoji: '🍎', description: 'Apple, banana, or berries', tags: ['fruit', 'fiber'], calories: 100, protein: 1, carbs: 25, fat: 0, fiber: 4 },
+  { id: 'hummus-veggies', label: 'Hummus & Veggies', type: 'snack', emoji: '🥕', description: 'Hummus with carrots, celery, or peppers', tags: ['fiber', 'protein'], calories: 200, protein: 8, carbs: 20, fat: 10, fiber: 6 },
 ];
 
 // Mediterranean diet recipe suggestions

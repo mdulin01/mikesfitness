@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useHealthData } from './hooks/useHealthData';
 import { ToastProvider } from './components/Toast';
@@ -17,8 +17,6 @@ export default function App() {
   const {
     data, loading: dataLoading,
   } = healthData;
-
-  const [activeSection, setActiveSection] = useState('dashboard');
 
   if (authLoading) {
     return (
@@ -46,34 +44,25 @@ export default function App() {
     );
   }
 
-  const renderSection = () => {
-    switch (activeSection) {
-      case 'dashboard':
-        return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
-      case 'nutrition':
-        return <Nutrition {...healthData} />;
-      case 'training':
-        return <Training {...healthData} />;
-      case 'health':
-        return <Health {...healthData} />;
-      case 'medical':
-        return <Medical {...healthData} />;
-      case 'life':
-        return <Life {...healthData} />;
-      default:
-        return <Dashboard {...healthData} setActiveSection={setActiveSection} />;
-    }
-  };
-
   return (
-    <ToastProvider>
-      <div className="min-h-screen bg-slate-900">
-        <Nav activeSection={activeSection} setActiveSection={setActiveSection} user={user} onLogout={logout} />
-        {renderSection()}
-        <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-          Made by Mike Dulin, MD · Build 11
-        </footer>
-      </div>
-    </ToastProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <div className="min-h-screen bg-slate-900">
+          <Nav user={user} onLogout={logout} />
+          <Routes>
+            <Route path="/" element={<Dashboard {...healthData} />} />
+            <Route path="/nutrition" element={<Nutrition {...healthData} />} />
+            <Route path="/training" element={<Training {...healthData} />} />
+            <Route path="/health" element={<Health {...healthData} />} />
+            <Route path="/medical" element={<Medical {...healthData} />} />
+            <Route path="/life" element={<Life {...healthData} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
+            Made by Mike Dulin, MD · Build 14
+          </footer>
+        </div>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }

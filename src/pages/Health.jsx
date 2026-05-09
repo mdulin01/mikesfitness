@@ -149,6 +149,7 @@ const TABS = [
   { id: 'weight', label: 'Weight' },
   { id: 'vitals', label: 'Vitals' },
   { id: 'fitness', label: 'Fitness' },
+  { id: 'sleep', label: 'Sleep' },
   { id: 'lipids', label: 'Lipids' },
   { id: 'kidney', label: 'Kidney' },
   { id: 'other', label: 'Other' },
@@ -379,6 +380,99 @@ export default function Health({ data, addWeight, addLabResult, ...rest }) {
           <RunPaceForm save={rest?.save || (() => {})} currentEntries={data?.runEntries || []} />
           <ChartCard title="VO2 Max" emoji="💨" data={vo2Data} goalValue={40} color="#06b6d4" unit="ml/kg/min" />
           <VO2MaxForm save={rest?.save || (() => {})} currentEntries={data?.vo2Entries || []} />
+        </div>
+      )}
+
+      {/* === SLEEP === */}
+      {view === 'sleep' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white">😴 Sleep Trends</h2>
+          {(() => {
+            const sleepLog = data?.sleepLog || {};
+            const entries = Object.entries(sleepLog)
+              .filter(([_, v]) => v.hours)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .slice(-30);
+
+            if (entries.length === 0) {
+              return <p className="text-sm text-slate-400">No sleep data logged yet. Use the Sleep Tracker on the Dashboard to start.</p>;
+            }
+
+            const avg = (entries.reduce((s, [_, v]) => s + v.hours, 0) / entries.length).toFixed(1);
+            const avgQuality = entries.filter(([_, v]) => v.quality).length > 0
+              ? (entries.reduce((s, [_, v]) => s + (v.quality || 0), 0) / entries.filter(([_, v]) => v.quality).length).toFixed(1)
+              : null;
+            const best = Math.max(...entries.map(([_, v]) => v.hours)).toFixed(1);
+            const worst = Math.min(...entries.map(([_, v]) => v.hours)).toFixed(1);
+            const daysOver7 = entries.filter(([_, v]) => v.hours >= 7).length;
+
+            return (
+              <>
+                {/* Stats row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 p-3">
+                    <div className="text-xs text-slate-400">Avg Hours</div>
+                    <div className={`text-xl font-bold ${parseFloat(avg) >= 7 ? 'text-green-400' : parseFloat(avg) >= 6 ? 'text-yellow-400' : 'text-red-400'}`}>{avg}</div>
+                  </div>
+                  {avgQuality && (
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-3">
+                      <div className="text-xs text-slate-400">Avg Quality</div>
+                      <div className="text-xl font-bold text-blue-400">{avgQuality}/5</div>
+                    </div>
+                  )}
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 p-3">
+                    <div className="text-xs text-slate-400">Best / Worst</div>
+                    <div className="text-xl font-bold text-slate-200">{best} / {worst}</div>
+                  </div>
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 p-3">
+                    <div className="text-xs text-slate-400">Days 7+ hrs</div>
+                    <div className="text-xl font-bold text-green-400">{daysOver7}/{entries.length}</div>
+                  </div>
+                </div>
+
+                {/* Chart */}
+                <ChartCard
+                  title="Sleep Hours (Last 30 Days)"
+                  emoji="😴"
+                  data={entries.map(([date, v]) => ({ date, value: v.hours }))}
+                  goalValue={7}
+                  color="#8b5cf6"
+                  unit=" hrs"
+                />
+
+                {/* Quality chart if data exists */}
+                {entries.some(([_, v]) => v.quality) && (
+                  <ChartCard
+                    title="Sleep Quality (Last 30 Days)"
+                    emoji="⭐"
+                    data={entries.filter(([_, v]) => v.quality).map(([date, v]) => ({ date, value: v.quality }))}
+                    goalValue={4}
+                    color="#f59e0b"
+                    unit="/5"
+                  />
+                )}
+
+                {/* Recent entries table */}
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                  <h3 className="text-sm font-semibold text-white mb-3">Recent Nights</h3>
+                  <div className="space-y-1.5">
+                    {entries.slice(-10).reverse().map(([date, v]) => (
+                      <div key={date} className="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg text-sm">
+                        <span className="text-slate-400">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                        <div className="flex items-center gap-3">
+                          <span className={`font-medium ${v.hours >= 7 ? 'text-green-400' : v.hours >= 6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                            {v.hours.toFixed(1)} hrs
+                          </span>
+                          {v.bedtime && <span className="text-xs text-slate-500">{v.bedtime} → {v.wakeTime}</span>}
+                          {v.quality && <span className="text-xs text-yellow-400">{'★'.repeat(v.quality)}{'☆'.repeat(5 - v.quality)}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 

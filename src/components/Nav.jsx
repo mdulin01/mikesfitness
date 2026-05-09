@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SECTIONS } from '../constants';
 
-export default function Nav({ activeSection, setActiveSection, user, onLogout }) {
+export default function Nav({ user, onLogout }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
@@ -13,6 +16,15 @@ export default function Nav({ activeSection, setActiveSection, user, onLogout })
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  const getPathForSection = (sectionId) => {
+    return sectionId === 'dashboard' ? '/' : `/${sectionId}`;
+  };
+
+  const isActiveSection = (sectionId) => {
+    const path = getPathForSection(sectionId);
+    return location.pathname === path;
+  };
 
   const handleTitleClick = async () => {
     if (installPrompt) {
@@ -35,9 +47,9 @@ export default function Nav({ activeSection, setActiveSection, user, onLogout })
           {SECTIONS.map(s => (
             <button
               key={s.id}
-              onClick={() => setActiveSection(s.id)}
+              onClick={() => navigate(getPathForSection(s.id))}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeSection === s.id
+                isActiveSection(s.id)
                   ? 'bg-blue-900/50 text-blue-400'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
@@ -68,9 +80,9 @@ export default function Nav({ activeSection, setActiveSection, user, onLogout })
         {SECTIONS.map(s => (
           <button
             key={s.id}
-            onClick={() => setActiveSection(s.id)}
+            onClick={() => navigate(getPathForSection(s.id))}
             className={`flex-1 py-2 pt-2 pb-3 flex flex-col items-center gap-0.5 text-xs transition-colors ${
-              activeSection === s.id ? 'text-blue-400' : 'text-slate-500'
+              isActiveSection(s.id) ? 'text-blue-400' : 'text-slate-500'
             }`}
           >
             <span className="text-lg">{s.emoji}</span>

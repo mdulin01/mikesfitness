@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
 import { getLatestValue, getTrend } from '../data/labData';
@@ -143,6 +144,13 @@ function systemStatus(key, data, dailyChecks, medChecks) {
       return { status: 'yellow', label: 'No data', detail };
     }
     case 'sleep': {
+      const sleepEntry = data?.sleepLog?.[toLocalDateStr()] || {};
+      if (sleepEntry.hours) {
+        const detail = `${sleepEntry.hours.toFixed(1)} hrs · Bed ${sleepEntry.bedtime || '?'} · Wake ${sleepEntry.wakeTime || '?'}${sleepEntry.quality ? ` · Quality ${sleepEntry.quality}/5` : ''}`;
+        if (sleepEntry.hours >= 7) return { status: 'green', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
+        if (sleepEntry.hours >= 6) return { status: 'yellow', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
+        return { status: 'red', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
+      }
       const slept = dailyChecks['sleep'];
       const detail = slept ? 'Logged 7+ hours today' : 'Not yet logged today';
       if (slept) return { status: 'green', label: '7+ hrs', detail };
@@ -160,11 +168,12 @@ const STATUS_COLORS = {
 };
 
 export default function Dashboard({
-  data, toggleDayCompletion, getWeekKey, toggleDailyItem, setActiveSection,
-  toggleMedCheck, saveFastingEntry, saveFiberEntry,
+  data, toggleDayCompletion, getWeekKey, toggleDailyItem,
+  toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry, addWaterEntry, removeWaterEntry,
   getMonthKey,
   updateDailyItems, ...rest
 }) {
+  const navigate = useNavigate();
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayStr = today();
@@ -187,6 +196,20 @@ export default function Dashboard({
   // Exercise log
   const [showExerciseLog, setShowExerciseLog] = useState(false);
   const [exerciseForm, setExerciseForm] = useState({ type: 'walk', duration: '', notes: '' });
+
+  // Sleep log
+  const [showSleepLog, setShowSleepLog] = useState(false);
+  const todaySleep = data?.sleepLog?.[todayStr] || {};
+
+  // BP quick log
+  const [showBPInput, setShowBPInput] = useState(false);
+  const [bpSys, setBpSys] = useState('');
+  const [bpDia, setBpDia] = useState('');
+  const [sleepForm, setSleepForm] = useState({ bedtime: todaySleep.bedtime || '22:00', wakeTime: todaySleep.wakeTime || '06:00', quality: todaySleep.quality || 3 });
+
+  // Water log
+  const todayWater = data?.waterLog?.[todayStr] || { entries: [], total: 0 };
+  const waterTarget = 80; // oz
 
   // Edit checklist
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -244,7 +267,8 @@ export default function Dashboard({
     const fiberPts = (medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0);
     const nutritionPts = mealPts + fiberPts; // 20 max
 
-    const sleepPts = dailyChecks['sleep'] ? 20 : 0; // 20 max
+    const sleepEntry = data?.sleepLog?.[todayStr] || {};
+    const sleepPts = sleepEntry.hours ? (sleepEntry.hours >= 7 ? 20 : sleepEntry.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); // 20 max
 
     const medPts = totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0; // 20 max
 
@@ -442,15 +466,39 @@ export default function Dashboard({
             </span>
           ))}
         </div>
+
+        {/* Quick BP Log */}
+        <div className="mt-3">
+          <button onClick={() => setShowBPInput(!showBPInput)} className="text-xs text-blue-400 hover:text-blue-300">
+            + Log BP
+          </button>
+          {showBPInput && (
+            <div className="flex gap-2 mt-2 items-center">
+              <input type="number" placeholder="Sys" value={bpSys} onChange={e => setBpSys(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
+              <span className="text-slate-500">/</span>
+              <input type="number" placeholder="Dia" value={bpDia} onChange={e => setBpDia(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
+              <button onClick={() => {
+                if(bpSys && bpDia) {
+                  const entries = [...(data?.bpEntries || []), { id: Date.now(), date: toLocalDateStr(), systolic: parseInt(bpSys), diastolic: parseInt(bpDia), value: parseInt(bpSys) }];
+                  save({ bpEntries: entries });
+                  setBpSys(''); setBpDia(''); setShowBPInput(false);
+                }
+              }} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Save</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ══════ TODAY'S CHECKLIST (compact) ══════ */}
-      <div className="flex gap-2">
+      <div className="flex gap-1.5 flex-wrap">
         {todayItems.map(item => (
-          <div key={item.key} className={`flex-1 py-2 rounded-lg text-center text-xs font-medium border ${
-            item.done ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-500'
+          <div key={item.key} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+            item.done ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/40' : 'bg-slate-800/60 text-slate-500 ring-1 ring-slate-700'
           }`}>
-            {item.done ? '✓' : '○'} {item.label}
+            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] ${
+              item.done ? 'bg-green-500 text-white' : 'border border-slate-600'
+            }`}>{item.done ? '✓' : ''}</span>
+            {item.label}
           </div>
         ))}
       </div>
@@ -617,6 +665,91 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* ══════ SLEEP TRACKER ══════ */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-white">😴 Sleep Tracker</h2>
+          {todaySleep.hours && (
+            <span className={`text-sm font-bold ${todaySleep.hours >= 7 ? 'text-green-400' : todaySleep.hours >= 6 ? 'text-yellow-400' : 'text-red-400'}`}>
+              {todaySleep.hours.toFixed(1)} hrs
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">🌙 Bedtime</label>
+            <input type="time" value={sleepForm.bedtime}
+              onChange={e => setSleepForm(f => ({ ...f, bedtime: e.target.value }))}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">☀️ Wake time</label>
+            <input type="time" value={sleepForm.wakeTime}
+              onChange={e => setSleepForm(f => ({ ...f, wakeTime: e.target.value }))}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white" />
+          </div>
+        </div>
+        <div className="mb-3">
+          <label className="text-xs text-slate-400 block mb-1">Quality</label>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map(q => (
+              <button key={q} onClick={() => setSleepForm(f => ({ ...f, quality: q }))}
+                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  sleepForm.quality === q ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={() => {
+          const [bh, bm] = sleepForm.bedtime.split(':').map(Number);
+          const [wh, wm] = sleepForm.wakeTime.split(':').map(Number);
+          let mins = (wh * 60 + wm) - (bh * 60 + bm);
+          if (mins <= 0) mins += 24 * 60;
+          const hours = Math.round((mins / 60) * 100) / 100;
+          saveSleepEntry(todayStr, { bedtime: sleepForm.bedtime, wakeTime: sleepForm.wakeTime, hours, quality: sleepForm.quality });
+          if (hours >= 7 && !dailyChecks['sleep']) toggleDailyItem(todayStr, 'sleep');
+        }} className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500">
+          Save Sleep
+        </button>
+      </div>
+
+      {/* ══════ WATER TRACKER ══════ */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-white">💧 Water Tracker</h2>
+          <span className={`text-sm font-bold ${todayWater.total >= waterTarget ? 'text-green-400' : todayWater.total >= waterTarget * 0.5 ? 'text-blue-400' : 'text-slate-500'}`}>
+            {todayWater.total} / {waterTarget} oz
+          </span>
+        </div>
+        <div className="w-full bg-slate-700 rounded-full h-3 mb-3">
+          <div className={`h-3 rounded-full transition-all ${todayWater.total >= waterTarget ? 'bg-green-500' : 'bg-blue-500'}`}
+            style={{ width: `${Math.min(100, (todayWater.total / waterTarget) * 100)}%` }} />
+        </div>
+        <div className="flex gap-2 mb-3">
+          {[{ oz: 8, label: '8oz Glass' }, { oz: 12, label: '12oz Can' }, { oz: 16, label: '16oz Bottle' }, { oz: 24, label: '24oz Lg' }].map(opt => (
+            <button key={opt.oz} onClick={() => {
+              addWaterEntry(todayStr, opt.oz);
+              if ((todayWater.total + opt.oz) >= waterTarget && !dailyChecks['water']) toggleDailyItem(todayStr, 'water');
+            }}
+              className="flex-1 py-2 bg-blue-900/30 border border-blue-700/50 rounded-lg text-xs font-medium text-blue-300 hover:bg-blue-800/40 transition-all">
+              +{opt.oz}oz
+            </button>
+          ))}
+        </div>
+        {todayWater.entries.length > 0 && (
+          <div className="space-y-1 text-xs text-slate-400">
+            {todayWater.entries.slice(-5).map(e => (
+              <div key={e.id} className="flex justify-between items-center">
+                <span>{e.time} — {e.oz}oz</span>
+                <button onClick={() => removeWaterEntry(todayStr, e.id)} className="text-red-400 hover:text-red-300 text-xs">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ══════ MEDS & SUPPLEMENTS ══════ */}
       <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>
         <div className="space-y-2">
@@ -673,10 +806,10 @@ export default function Dashboard({
       {/* ══════ NUTRITION SUMMARY ══════ */}
       <Section title="Today's Nutrition" emoji="🍽️" defaultOpen={true}>
         <div className="flex justify-end -mt-2 mb-2">
-          <button onClick={() => setActiveSection('nutrition')} className="text-sm text-blue-400 hover:underline">Log meals →</button>
+          <button onClick={() => navigate('/nutrition')} className="text-sm text-blue-400 hover:underline">Log meals →</button>
         </div>
         {todayMeals.length === 0 ? (
-          <button onClick={() => setActiveSection('nutrition')} className="w-full p-4 bg-slate-700/30 border border-dashed border-slate-600 rounded-lg text-sm text-slate-500 hover:text-slate-300 transition-colors">
+          <button onClick={() => navigate('/nutrition')} className="w-full p-4 bg-slate-700/30 border border-dashed border-slate-600 rounded-lg text-sm text-slate-500 hover:text-slate-300 transition-colors">
             No meals logged yet. Tap to start tracking →
           </button>
         ) : (
@@ -692,6 +825,18 @@ export default function Dashboard({
               );
             })}
             {todayMeals.length > 4 && <p className="text-xs text-slate-500 text-center">+{todayMeals.length - 4} more</p>}
+            {(() => {
+              const cals = todayMeals.reduce((s, m) => s + (m.calories || 0), 0);
+              const prot = todayMeals.reduce((s, m) => s + (m.protein || 0), 0);
+              if (cals === 0 && prot === 0) return null;
+              return (
+                <div className="flex gap-3 mt-2 pt-2 border-t border-slate-700 text-xs text-slate-400">
+                  <span>🔥 {cals} cal</span>
+                  <span>🥩 {prot}g protein</span>
+                  <span>🌾 {todayMeals.reduce((s, m) => s + (m.fiber || 0), 0)}g fiber</span>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Section>
@@ -771,7 +916,7 @@ export default function Dashboard({
       {/* ══════ THIS WEEK ══════ */}
       <Section title="This Week" emoji="📅" defaultOpen={true}>
         <div className="flex justify-end -mt-2 mb-2">
-          <button onClick={() => setActiveSection('training')} className="text-sm text-blue-400 hover:underline">View all →</button>
+          <button onClick={() => navigate('/training')} className="text-sm text-blue-400 hover:underline">View all →</button>
         </div>
         <div className="grid grid-cols-7 gap-1">
           {exercisePlan.weeklySchedule.map((day) => {
@@ -798,7 +943,7 @@ export default function Dashboard({
       {(upcomingAppts.length > 0 || needsScheduling.length > 0) && (
         <Section title="Upcoming" emoji="📋" defaultOpen={true}>
           <div className="flex justify-end -mt-2 mb-2">
-            <button onClick={() => setActiveSection('life')} className="text-sm text-blue-400 hover:underline">View all →</button>
+            <button onClick={() => navigate('/life')} className="text-sm text-blue-400 hover:underline">View all →</button>
           </div>
           <div className="space-y-2">
             {upcomingAppts.map(appt => {

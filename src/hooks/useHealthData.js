@@ -157,6 +157,15 @@ const defaultData = {
 
   // Fiber tracking: { '2026-04-04': { morning: true, evening: true, foods: ['oatmeal', 'lentils'] } }
   fiberLog: {},
+
+  // Sleep log: { '2026-04-04': { bedtime: '22:30', wakeTime: '06:15', hours: 7.75, quality: 3 } }
+  sleepLog: {},
+
+  // Water log: { '2026-04-04': { entries: [{ id, time, oz }], total: 0 } }
+  waterLog: {},
+
+  // Steps log: { '2026-04-12': { steps: 8500, source: 'manual' } }
+  stepsLog: {},
 };
 
 export const useHealthData = (user) => {
@@ -431,6 +440,47 @@ export const useHealthData = (user) => {
     save({ shoppingList: list });
   }, [data, save]);
 
+  // ========== SLEEP LOG ==========
+  const saveSleepEntry = useCallback((dateStr, entry) => {
+    const log = { ...(data?.sleepLog || {}) };
+    log[dateStr] = { ...(log[dateStr] || {}), ...entry };
+    setData(d => ({ ...d, sleepLog: log }));
+    save({ sleepLog: log });
+  }, [data, save]);
+
+  // ========== WATER LOG ==========
+  const addWaterEntry = useCallback((dateStr, oz) => {
+    const log = { ...(data?.waterLog || {}) };
+    if (!log[dateStr]) log[dateStr] = { entries: [], total: 0 };
+    const entry = { id: Date.now(), time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), oz };
+    log[dateStr] = {
+      entries: [...log[dateStr].entries, entry],
+      total: log[dateStr].total + oz,
+    };
+    setData(d => ({ ...d, waterLog: log }));
+    save({ waterLog: log });
+  }, [data, save]);
+
+  const removeWaterEntry = useCallback((dateStr, entryId) => {
+    const log = { ...(data?.waterLog || {}) };
+    if (!log[dateStr]) return;
+    const removed = log[dateStr].entries.find(e => e.id === entryId);
+    log[dateStr] = {
+      entries: log[dateStr].entries.filter(e => e.id !== entryId),
+      total: Math.max(0, log[dateStr].total - (removed?.oz || 0)),
+    };
+    setData(d => ({ ...d, waterLog: log }));
+    save({ waterLog: log });
+  }, [data, save]);
+
+  // ========== STEPS LOG ==========
+  const saveStepsEntry = useCallback((dateStr, steps) => {
+    const log = { ...(data?.stepsLog || {}) };
+    log[dateStr] = { steps: parseInt(steps) || 0, source: 'manual' };
+    setData(d => ({ ...d, stepsLog: log }));
+    save({ stepsLog: log });
+  }, [data, save]);
+
   return {
     data, loading, save,
     addWeight,
@@ -455,5 +505,9 @@ export const useHealthData = (user) => {
     saveFastingEntry, saveFastingSettings,
     // Fiber
     saveFiberEntry,
+    // Sleep and Water
+    saveSleepEntry, addWaterEntry, removeWaterEntry,
+    // Steps
+    saveStepsEntry,
   };
 };

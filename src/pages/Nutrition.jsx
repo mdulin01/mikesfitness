@@ -6,12 +6,13 @@ import { toLocalDateStr, toLocalTimeStr } from '../utils/dateUtils';
 export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, saveFastingEntry, saveFastingSettings, saveFiberEntry, ...rest }) {
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr());
   const [showMealModal, setShowMealModal] = useState(false);
-  const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '' });
+  const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '', calories: '', protein: '', carbs: '', fat: '', fiber: '' });
   const [activeTab, setActiveTab] = useState('log'); // 'log' | 'presets' | 'recipes' | 'shopping' | 'guide'
   const [shoppingInput, setShoppingInput] = useState('');
   const [shoppingQty, setShoppingQty] = useState('');
   const [shoppingCategory, setShoppingCategory] = useState('produce');
   const [expandedRecipe, setExpandedRecipe] = useState(null);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   const [editingFastSettings, setEditingFastSettings] = useState(false);
   const [fastSettingsForm, setFastSettingsForm] = useState(null);
@@ -31,27 +32,37 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
     const dateMeals = data?.mealLog?.[dateStr] || [];
     const dailyChecklist = data?.dailyChecklist?.[dateStr] || {};
     const fiberLog = data?.fiberLog?.[dateStr] || {};
+    const waterLog = data?.waterLog?.[dateStr] || { entries: [], total: 0 };
 
-    // Protein: count meals with 'protein' tag or description. Each ~30g. Full score if >= 4
+    // Protein: sum actual macro values if present, otherwise estimate from tags
+    const proteinFromMacros = dateMeals.reduce((sum, m) => sum + (m.protein || 0), 0);
     const proteinMeals = dateMeals.filter(m =>
       m.description?.toLowerCase().includes('protein') ||
       m.notes?.toLowerCase().includes('protein') ||
       (m.tags && m.tags.some(t => t.toLowerCase().includes('protein')))
     ).length;
-    const proteinEstimate = Math.min(120, proteinMeals * 30);
-    const proteinScore = Math.min(25, (proteinMeals >= 4 ? 25 : (proteinMeals / 4) * 25));
+    const proteinEstimate = proteinFromMacros > 0 ? proteinFromMacros : Math.min(120, proteinMeals * 30);
+    const proteinScore = Math.min(25, (proteinEstimate / targets.protein) * 25);
 
-    // Fiber: morning + evening fiber supplement = 10 pts, each fiber food = 3 pts, cap at 25
+    // Fiber: sum actual values + supplements
+    const fiberFromMacros = dateMeals.reduce((sum, m) => sum + (m.fiber || 0), 0);
     const fiberSupplements = (fiberLog.morning ? 1 : 0) + (fiberLog.evening ? 1 : 0);
     const fiberFoods = dateMeals.filter(m =>
       m.description?.toLowerCase().includes('fiber') ||
       m.notes?.toLowerCase().includes('fiber') ||
       (m.tags && m.tags.some(t => t.toLowerCase().includes('fiber')))
     ).length;
-    const fiberEstimate = (fiberSupplements * 10) + (fiberFoods * 3);
-    const fiberScore = Math.min(25, fiberEstimate > 0 ? Math.min(25, (fiberEstimate / 30) * 25) : 0);
+    const fiberEstimate = fiberFromMacros > 0
+      ? fiberFromMacros + (fiberSupplements * 10)
+      : (fiberSupplements * 10) + (fiberFoods * 3);
+    const fiberScore = Math.min(25, fiberEstimate > 0 ? Math.min(25, (fiberEstimate / targets.fiber) * 25) : 0);
 
-    // Plants: count meals with vegetables/salads/fruits. Each = 1 serving. Scale to 20 pts
+    // Calories: sum from macros
+    const caloriesTotal = dateMeals.reduce((sum, m) => sum + (m.calories || 0), 0);
+    const carbsTotal = dateMeals.reduce((sum, m) => sum + (m.carbs || 0), 0);
+    const fatTotal = dateMeals.reduce((sum, m) => sum + (m.fat || 0), 0);
+
+    // Plants: count meals with vegetables/salads/fruits
     const plantServings = dateMeals.filter(m =>
       m.description?.toLowerCase().includes('vegetable') ||
       m.description?.toLowerCase().includes('salad') ||
@@ -65,10 +76,8 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
     ).length;
     const plantsScore = Math.min(20, (plantServings / 5) * 20);
 
-    // No alcohol: check dailyChecklist
+    // No alcohol / Low sugar
     const noAlcoholScore = dailyChecklist['no-alcohol'] ? 15 : 0;
-
-    // Low sugar: check dailyChecklist
     const lowSugarScore = dailyChecklist['no-sweets'] ? 15 : 0;
 
     const totalScore = Math.round(proteinScore + fiberScore + plantsScore + noAlcoholScore + lowSugarScore);
@@ -83,6 +92,11 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       plantsScore,
       noAlcoholScore,
       lowSugarScore,
+      caloriesTotal,
+      carbsTotal,
+      fatTotal,
+      waterTotal: waterLog.total || 0,
+      waterTarget: targets.water || 80,
     };
   };
 
@@ -91,8 +105,16 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const submitMeal = (e) => {
     e.preventDefault();
     if (!mealForm.description) return;
-    addMeal(selectedDate, { ...mealForm, time: toLocalTimeStr() });
-    setMealForm({ type: 'lunch', description: '', notes: '' });
+    addMeal(selectedDate, {
+      ...mealForm,
+      time: toLocalTimeStr(),
+      calories: parseInt(mealForm.calories) || 0,
+      protein: parseInt(mealForm.protein) || 0,
+      carbs: parseInt(mealForm.carbs) || 0,
+      fat: parseInt(mealForm.fat) || 0,
+      fiber: parseInt(mealForm.fiber) || 0,
+    });
+    setMealForm({ type: 'lunch', description: '', notes: '', calories: '', protein: '', carbs: '', fat: '', fiber: '' });
     setShowMealModal(false);
   };
 
@@ -102,6 +124,12 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       description: preset.label,
       notes: preset.description,
       time: toLocalTimeStr(),
+      tags: preset.tags || [],
+      calories: preset.calories || 0,
+      protein: preset.protein || 0,
+      carbs: preset.carbs || 0,
+      fat: preset.fat || 0,
+      fiber: preset.fiber || 0,
     });
   };
 
@@ -180,7 +208,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       {activeTab === 'log' && (
         <>
           {/* Nutrition Score Banner */}
-          <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-800/50 rounded-xl p-6 text-center">
+          <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-800/50 rounded-xl p-6 text-center cursor-pointer" onClick={() => setShowScoreBreakdown(s => !s)}>
             <div className="mb-2 text-xs text-slate-400 uppercase tracking-wide">Nutrition Score</div>
             <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mb-3">
               {metrics.score}
@@ -203,6 +231,15 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
               metrics.score >= 40 ? '⚠️ Room for improvement' :
               '💪 Keep working on it'}
             </div>
+            {showScoreBreakdown && (
+              <div className="mt-3 space-y-2 text-sm border-t border-slate-600 pt-3">
+                <div className="flex justify-between"><span className="text-slate-400">🥩 Protein ({metrics.proteinEstimate}g / {targets.protein}g)</span><span className="text-white font-medium">{Math.round(metrics.proteinScore)}/25</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">🌾 Fiber ({metrics.fiberEstimate}g / {targets.fiber}g)</span><span className="text-white font-medium">{Math.round(metrics.fiberScore)}/25</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">🥬 Plants ({metrics.plantServings} / 5 servings)</span><span className="text-white font-medium">{Math.round(metrics.plantsScore)}/20</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">🚫🍺 No Alcohol</span><span className="text-white font-medium">{metrics.noAlcoholScore}/15</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">🚫🍰 No Sweets</span><span className="text-white font-medium">{metrics.lowSugarScore}/15</span></div>
+              </div>
+            )}
           </div>
 
           {/* Daily Targets Display */}
@@ -249,14 +286,88 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
               </div>
             </div>
 
-            {/* Water reminder */}
+            {/* Calories */}
             <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">💧 Water</span>
-                <span className="text-xs font-medium text-cyan-400">{targets.water} oz target</span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🔥 Calories</span>
+                <span className={`text-xs font-medium ${metrics.caloriesTotal > 0 ? 'text-orange-400' : 'text-slate-500'}`}>
+                  {metrics.caloriesTotal} kcal
+                </span>
               </div>
-              <div className="text-xs text-slate-500 mt-1">Aim for 8-10 glasses throughout the day</div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className="bg-orange-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (metrics.caloriesTotal / 2000) * 100)}%` }} />
+              </div>
             </div>
+
+            {/* Carbs */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🌾 Carbs</span>
+                <span className={`text-xs font-medium ${metrics.carbsTotal > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {metrics.carbsTotal}g
+                </span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (metrics.carbsTotal / 300) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Fat */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">🫀 Fat</span>
+                <span className={`text-xs font-medium ${metrics.fatTotal > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                  {metrics.fatTotal}g
+                </span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className="bg-red-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (metrics.fatTotal / 70) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Water */}
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-slate-300">💧 Water</span>
+                <span className={`text-xs font-medium ${metrics.waterTotal > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                  {metrics.waterTotal} / {metrics.waterTarget} oz
+                </span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (metrics.waterTotal / metrics.waterTarget) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Water trend - last 7 days */}
+            {(() => {
+              const days = [];
+              for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = toLocalDateStr(d);
+                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+                const waterData = data?.waterLog?.[dateStr] || { total: 0 };
+                days.push({ dateStr, dayLabel, total: waterData.total });
+              }
+              const maxWater = Math.max(targets.water, ...days.map(d => d.total));
+              if (days.every(d => d.total === 0)) return null;
+              return (
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 mt-2">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">💧 Water This Week</h3>
+                  <div className="flex items-end gap-1.5 h-20">
+                    {days.map(d => (
+                      <div key={d.dateStr} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full bg-slate-700 rounded-t relative" style={{ height: '60px' }}>
+                          <div className={`absolute bottom-0 w-full rounded-t transition-all ${d.total >= targets.water ? 'bg-green-500' : d.total > 0 ? 'bg-blue-500' : 'bg-slate-600'}`}
+                            style={{ height: `${maxWater > 0 ? (d.total / maxWater) * 60 : 0}px` }} />
+                        </div>
+                        <span className="text-[10px] text-slate-500">{d.dayLabel}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Date navigator */}
@@ -527,6 +638,11 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
                             <span key={tag} className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded-full">{tag}</span>
                           ))}
                         </div>
+                        {preset.calories && (
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            {preset.calories} cal · {preset.protein}g P · {preset.carbs}g C · {preset.fat}g F
+                          </div>
+                        )}
                       </div>
                       <span className="text-green-400 text-lg">+</span>
                     </button>
@@ -797,6 +913,40 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
               <input type="text" placeholder="Notes (optional)" value={mealForm.notes}
                 onChange={e => setMealForm(f => ({ ...f, notes: e.target.value }))}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-white placeholder-slate-400" />
+
+              <div className="grid grid-cols-5 gap-2">
+                <div>
+                  <label className="text-xs text-slate-400">Cal</label>
+                  <input type="number" placeholder="0" value={mealForm.calories}
+                    onChange={e => setMealForm(f => ({ ...f, calories: e.target.value }))}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-2 py-1 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Pro</label>
+                  <input type="number" placeholder="0" value={mealForm.protein}
+                    onChange={e => setMealForm(f => ({ ...f, protein: e.target.value }))}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-2 py-1 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Carb</label>
+                  <input type="number" placeholder="0" value={mealForm.carbs}
+                    onChange={e => setMealForm(f => ({ ...f, carbs: e.target.value }))}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-2 py-1 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Fat</label>
+                  <input type="number" placeholder="0" value={mealForm.fat}
+                    onChange={e => setMealForm(f => ({ ...f, fat: e.target.value }))}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-2 py-1 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Fib</label>
+                  <input type="number" placeholder="0" value={mealForm.fiber}
+                    onChange={e => setMealForm(f => ({ ...f, fiber: e.target.value }))}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-2 py-1 text-white text-sm" />
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowMealModal(false)} className="flex-1 py-2 border border-slate-600 rounded-lg text-sm text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">Save</button>

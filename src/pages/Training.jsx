@@ -29,12 +29,14 @@ const ALL_EXERCISES = [
   { id: 'custom', name: 'Custom Exercise', sets: 3, reps: '10', source: 'extra' },
 ];
 
-export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry, saveWorkoutDetail, addAppointment, saveExerciseLog, ...rest }) {
+export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry, saveWorkoutDetail, addAppointment, saveExerciseLog, saveStepsEntry, ...rest }) {
   const [view, setView] = useState('week');
+  const [stepsInput, setStepsInput] = useState('');
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayDow = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const todayStr = toLocalDateStr();
+  const todaySteps = data?.stepsLog?.[toLocalDateStr()]?.steps;
 
   // Navigate weeks
   const [weekOffset, setWeekOffset] = useState(0);
@@ -363,8 +365,14 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
                 <div className="text-xs text-slate-400 mb-1">Steps</div>
-                <div className="text-lg font-bold text-white">—</div>
-                <div className="text-xs text-slate-500">Not tracked</div>
+                <div className="text-lg font-bold text-white">{todaySteps ? todaySteps.toLocaleString() : '—'}</div>
+                <div className="flex gap-1 mt-1">
+                  <input type="number" placeholder="Steps" value={stepsInput} onChange={e => setStepsInput(e.target.value)}
+                    className="w-20 bg-slate-600 border border-slate-500 rounded px-1 py-0.5 text-white text-xs" />
+                  <button onClick={() => { if(stepsInput) { saveStepsEntry(toLocalDateStr(), stepsInput); setStepsInput(''); }}}
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded">+</button>
+                </div>
+                <div className="text-xs text-slate-500">Target: 10,000</div>
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
                 <div className="text-xs text-slate-400 mb-1">Swim Yards</div>
