@@ -88,6 +88,14 @@ const defaultData = {
     // Fitness events from training calendar
     { id: 'half-marathon-event', type: 'half-marathon', category: 'fitness', doctor: '', date: '2026-05-02', time: '', location: 'Indianapolis, IN', notes: 'Indy Half Marathon', status: 'scheduled' },
     { id: 'triathlon-event', type: 'triathlon', category: 'fitness', doctor: '', date: '2026-09-27', time: '', location: 'Wrightsville Beach, NC', notes: 'Wrightsville Beach Triathlon', status: 'scheduled' },
+    // April–June 2026 medical appointments
+    { id: 'cardiology-hochrein-2026-04-21', type: 'cardiology', category: 'medical', doctor: 'Jake Hochrein', date: '2026-04-21', time: '', location: '', notes: '', status: 'completed' },
+    { id: 'dentist-2026-04-27', type: 'dentist', category: 'medical', doctor: '', date: '2026-04-27', time: '', location: '', notes: '', status: 'completed' },
+    { id: 'dental-cleaning-2026-05-12', type: 'dentist', category: 'medical', doctor: '', date: '2026-05-12', time: '14:00', location: '', notes: 'Cleaning', status: 'scheduled' },
+    { id: 'gi-shah-2026-05-19', type: 'gi', category: 'medical', doctor: 'Ravi Shah', date: '2026-05-19', time: '08:15', location: '', notes: '', status: 'scheduled' },
+    { id: 'vein-2026-05-22', type: 'other-medical', category: 'medical', doctor: '', date: '2026-05-22', time: '08:00', location: '', notes: 'Vein doctor', status: 'scheduled' },
+    { id: 'primary-2026-05-22', type: 'primary', category: 'medical', doctor: '', date: '2026-05-22', time: '', location: '', notes: '', status: 'scheduled' },
+    { id: 'echo-2026-06-12', type: 'cardiology', category: 'medical', doctor: '', date: '2026-06-12', time: '13:00', location: '', notes: 'Echocardiogram', status: 'scheduled' },
   ],
   // Medications
   medications: [],
