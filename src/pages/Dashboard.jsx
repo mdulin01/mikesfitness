@@ -19,7 +19,6 @@ const HABIT_GROUPS = {
   ],
   important: [
     { key: 'move', label: 'Move / Steps', emoji: '🏃' },
-    { key: 'water', label: '3L water', emoji: '💧' },
     { key: 'mobility', label: '10 min mobility', emoji: '🧘' },
   ],
   optional: [
@@ -196,7 +195,7 @@ const STATUS_COLORS = {
 
 export default function Dashboard({
   data, toggleDayCompletion, getWeekKey, toggleDailyItem,
-  toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry, addWaterEntry, removeWaterEntry,
+  toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry,
   getMonthKey,
   updateDailyItems,
   dailyMetricsByDate, lastDailyMetricsSync,
@@ -236,9 +235,7 @@ export default function Dashboard({
   const [bpDia, setBpDia] = useState('');
   const [sleepForm, setSleepForm] = useState({ bedtime: todaySleep.bedtime || '22:00', wakeTime: todaySleep.wakeTime || '06:00', quality: todaySleep.quality || 3 });
 
-  // Water log
-  const todayWater = data?.waterLog?.[todayStr] || { entries: [], total: 0 };
-  const waterTarget = 80; // oz
+  // Water tracker removed — variables deleted. Old data persists in Firestore but is unused.
 
   // Edit checklist
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -808,40 +805,7 @@ export default function Dashboard({
         </button>
       </div>
 
-      {/* ══════ WATER TRACKER ══════ */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-white">💧 Water Tracker</h2>
-          <span className={`text-sm font-bold ${todayWater.total >= waterTarget ? 'text-green-400' : todayWater.total >= waterTarget * 0.5 ? 'text-blue-400' : 'text-slate-500'}`}>
-            {todayWater.total} / {waterTarget} oz
-          </span>
-        </div>
-        <div className="w-full bg-slate-700 rounded-full h-3 mb-3">
-          <div className={`h-3 rounded-full transition-all ${todayWater.total >= waterTarget ? 'bg-green-500' : 'bg-blue-500'}`}
-            style={{ width: `${Math.min(100, (todayWater.total / waterTarget) * 100)}%` }} />
-        </div>
-        <div className="flex gap-2 mb-3">
-          {[{ oz: 8, label: '8oz Glass' }, { oz: 12, label: '12oz Can' }, { oz: 16, label: '16oz Bottle' }, { oz: 24, label: '24oz Lg' }].map(opt => (
-            <button key={opt.oz} onClick={() => {
-              addWaterEntry(todayStr, opt.oz);
-              if ((todayWater.total + opt.oz) >= waterTarget && !dailyChecks['water']) toggleDailyItem(todayStr, 'water');
-            }}
-              className="flex-1 py-2 bg-blue-900/30 border border-blue-700/50 rounded-lg text-xs font-medium text-blue-300 hover:bg-blue-800/40 transition-all">
-              +{opt.oz}oz
-            </button>
-          ))}
-        </div>
-        {todayWater.entries.length > 0 && (
-          <div className="space-y-1 text-xs text-slate-400">
-            {todayWater.entries.slice(-5).map(e => (
-              <div key={e.id} className="flex justify-between items-center">
-                <span>{e.time} — {e.oz}oz</span>
-                <button onClick={() => removeWaterEntry(todayStr, e.id)} className="text-red-400 hover:text-red-300 text-xs">✕</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Water tracker removed — wasn't useful in practice. Old waterLog data still exists in Firestore but is no longer read or rendered. */}
 
       {/* ══════ MEDS & SUPPLEMENTS ══════ */}
       <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>

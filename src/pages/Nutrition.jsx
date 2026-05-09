@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { MEAL_TYPES, MEAL_PRESETS, RECIPE_SUGGESTIONS } from '../constants';
+import { useToast } from '../components/Toast';
 import { toLocalDateStr, toLocalTimeStr } from '../utils/dateUtils';
 
 export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, toggleShoppingItem, deleteShoppingItem, clearCheckedItems, saveFastingEntry, saveFastingSettings, saveFiberEntry, ...rest }) {
+  const showToast = useToast();
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr());
   const [showMealModal, setShowMealModal] = useState(false);
   const [mealForm, setMealForm] = useState({ type: 'lunch', description: '', notes: '', calories: '', protein: '', carbs: '', fat: '', fiber: '' });
@@ -13,6 +15,10 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
   const [shoppingCategory, setShoppingCategory] = useState('produce');
   const [expandedRecipe, setExpandedRecipe] = useState(null);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  // Track which preset was just added so we can flash visual feedback on its tile.
+  // The id stays in state for ~1.5s so a frantic 4-tap user sees "✓ Added" and
+  // the count grows ("Added (3)") instead of silent ghost-clicks.
+  const [recentlyAddedPreset, setRecentlyAddedPreset] = useState(null); // { id, count, ts }
 
   const [editingFastSettings, setEditingFastSettings] = useState(false);
   const [fastSettingsForm, setFastSettingsForm] = useState(null);
@@ -32,7 +38,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
     const dateMeals = data?.mealLog?.[dateStr] || [];
     const dailyChecklist = data?.dailyChecklist?.[dateStr] || {};
     const fiberLog = data?.fiberLog?.[dateStr] || {};
-    const waterLog = data?.waterLog?.[dateStr] || { entries: [], total: 0 };
+    // Water tracker removed; the field is left in old data but unused.
 
     // Protein: sum actual macro values if present, otherwise estimate from tags
     const proteinFromMacros = dateMeals.reduce((sum, m) => sum + (m.protein || 0), 0);
@@ -95,8 +101,6 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       caloriesTotal,
       carbsTotal,
       fatTotal,
-      waterTotal: waterLog.total || 0,
-      waterTarget: targets.water || 80,
     };
   };
 
@@ -131,6 +135,17 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
       fat: preset.fat || 0,
       fiber: preset.fiber || 0,
     });
+    // Visual feedback so users know the tap registered. Tracks the per-tile add
+    // count for ~1.5s — if you genuinely want a second helping you tap again
+    // and see "Added (2)"; if not, the silent state is gone in 1.5s.
+    showToast?.(`Added ${preset.label}`, 'success');
+    setRecentlyAddedPreset(prev => {
+      const isSame = prev?.id === preset.id;
+      return { id: preset.id, count: isSame ? prev.count + 1 : 1, ts: Date.now() };
+    });
+    setTimeout(() => {
+      setRecentlyAddedPreset(prev => (prev?.id === preset.id && Date.now() - prev.ts >= 1500) ? null : prev);
+    }, 1600);
   };
 
   const addRecipeIngredients = (recipe) => {
@@ -325,49 +340,7 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
               </div>
             </div>
 
-            {/* Water */}
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-slate-300">💧 Water</span>
-                <span className={`text-xs font-medium ${metrics.waterTotal > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                  {metrics.waterTotal} / {metrics.waterTarget} oz
-                </span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (metrics.waterTotal / metrics.waterTarget) * 100)}%` }} />
-              </div>
-            </div>
-
-            {/* Water trend - last 7 days */}
-            {(() => {
-              const days = [];
-              for (let i = 6; i >= 0; i--) {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                const dateStr = toLocalDateStr(d);
-                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'narrow' });
-                const waterData = data?.waterLog?.[dateStr] || { total: 0 };
-                days.push({ dateStr, dayLabel, total: waterData.total });
-              }
-              const maxWater = Math.max(targets.water, ...days.map(d => d.total));
-              if (days.every(d => d.total === 0)) return null;
-              return (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 mt-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">💧 Water This Week</h3>
-                  <div className="flex items-end gap-1.5 h-20">
-                    {days.map(d => (
-                      <div key={d.dateStr} className="flex-1 flex flex-col items-center gap-1">
-                        <div className="w-full bg-slate-700 rounded-t relative" style={{ height: '60px' }}>
-                          <div className={`absolute bottom-0 w-full rounded-t transition-all ${d.total >= targets.water ? 'bg-green-500' : d.total > 0 ? 'bg-blue-500' : 'bg-slate-600'}`}
-                            style={{ height: `${maxWater > 0 ? (d.total / maxWater) * 60 : 0}px` }} />
-                        </div>
-                        <span className="text-[10px] text-slate-500">{d.dayLabel}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+            {/* Water tracker removed — wasn't useful in practice. */}
           </div>
 
           {/* Date navigator */}
@@ -626,27 +599,43 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
               <div key={mt.id} className="space-y-2">
                 <h3 className="text-sm font-semibold text-slate-300">{mt.emoji} {mt.label}</h3>
                 <div className="grid grid-cols-1 gap-2">
-                  {presets.map(preset => (
-                    <button key={preset.id} onClick={() => quickAddPreset(preset)}
-                      className="flex items-center gap-3 p-3 bg-slate-800 border border-slate-700 rounded-xl hover:bg-slate-700 transition-all text-left">
-                      <span className="text-2xl">{preset.emoji}</span>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-white">{preset.label}</div>
-                        <div className="text-xs text-slate-400">{preset.description}</div>
-                        <div className="flex gap-1 mt-1">
-                          {preset.tags.map(tag => (
-                            <span key={tag} className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded-full">{tag}</span>
-                          ))}
-                        </div>
-                        {preset.calories && (
-                          <div className="text-[10px] text-slate-500 mt-1">
-                            {preset.calories} cal · {preset.protein}g P · {preset.carbs}g C · {preset.fat}g F
+                  {presets.map(preset => {
+                    const justAdded = recentlyAddedPreset?.id === preset.id;
+                    return (
+                      <button key={preset.id} onClick={() => quickAddPreset(preset)}
+                        className={`flex items-center gap-3 p-3 border rounded-xl transition-all text-left ${
+                          justAdded
+                            ? 'bg-green-900/30 border-green-500 shadow-md shadow-green-500/20'
+                            : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                        }`}>
+                        <span className="text-2xl">{preset.emoji}</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-white flex items-center gap-2">
+                            {preset.label}
+                            {justAdded && (
+                              <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-bold">
+                                ✓ Added{recentlyAddedPreset.count > 1 ? ` (${recentlyAddedPreset.count})` : ''}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <span className="text-green-400 text-lg">+</span>
-                    </button>
-                  ))}
+                          <div className="text-xs text-slate-400">{preset.description}</div>
+                          <div className="flex gap-1 mt-1">
+                            {preset.tags.map(tag => (
+                              <span key={tag} className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded-full">{tag}</span>
+                            ))}
+                          </div>
+                          {preset.calories && (
+                            <div className="text-[10px] text-slate-500 mt-1">
+                              {preset.calories} cal · {preset.protein}g P · {preset.carbs}g C · {preset.fat}g F
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-lg transition-transform ${justAdded ? 'text-green-300 scale-125' : 'text-green-400'}`}>
+                          {justAdded ? '✓' : '+'}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );
