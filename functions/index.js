@@ -243,35 +243,42 @@ exports.mikesfitnessHealthIngest = onRequest(
     }
 
     // Write each per-date doc with merge so multiple syncs through the day
-    // don't clobber each other. Save raw payload for the most recent date so
-    // we can backfill new metrics later.
+    // don't clobber each other. We don't persist the raw payload: HAE batches
+    // can exceed Firestore's 1MB per-doc limit, and the function logs already
+    // capture unknown metric names for parser improvements.
     const dates = Object.keys(perDate);
-    const writes = dates.map((date) => {
-      const docRef = db.collection('dailyMetrics').doc(date);
-      return docRef.set({
-        ...perDate[date],
-        date,
-        source: 'apple-health',
-        lastSync: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-    });
-
-    // Stash the raw payload separately keyed by upload time. Capped at 60 days
-    // by a separate scheduled cleanup function (TODO).
-    const rawRef = db.collection('dailyMetricsRaw').doc();
-    writes.push(rawRef.set({
-      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-      datesAffected: dates,
-      unknownMetricNames: [...new Set(unknownMetricNames)],
-      payload: body,
-    }));
+    const uniqueUnknown = [...new Set(unknownMetricNames)];
 
     try {
-      await Promise.all(writes);
+      await Promise.all(dates.map((date) => {
+        const docRef = db.collection('dailyMetrics').doc(date);
+        return docRef.set({
+          ...perDate[date],
+          date,
+          source: 'apple-health',
+          lastSync: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }));
     } catch (err) {
       logger.error('Firestore write failed', err);
       res.status(500).send('Write failed');
       return;
+    }
+
+    // Best-effort summary log so we can refine the parser. Truncated to 500KB
+    // to stay safely under the per-doc limit. Wrapped in try/catch so it
+    // never fails the request.
+    try {
+      const summaryRef = db.collection('dailyMetricsSync').doc();
+      await summaryRef.set({
+        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        datesAffected: dates,
+        metricsProcessed: metrics.length,
+        workoutsProcessed: workouts.length,
+        unknownMetricNames: uniqueUnknown,
+      });
+    } catch (err) {
+      logger.warn('Sync summary write failed (non-fatal)', err);
     }
 
     logger.info('Ingest OK', {
@@ -286,7 +293,7 @@ exports.mikesfitnessHealthIngest = onRequest(
       datesAffected: dates,
       metricsProcessed: metrics.length,
       workoutsProcessed: workouts.length,
-      unknownMetricNames: [...new Set(unknownMetricNames)],
+      unknownMetricNames: uniqueUnknown,
     });
   }
 );
