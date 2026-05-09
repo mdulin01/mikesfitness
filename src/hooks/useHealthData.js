@@ -173,6 +173,9 @@ export const useHealthData = (user) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [labPanels, setLabPanels] = useState([]);
+  // dailyMetrics docs are keyed by YYYY-MM-DD; keep them as a map for O(1) lookup
+  // by date and a sorted array for charts/trends.
+  const [dailyMetricsByDate, setDailyMetricsByDate] = useState({});
 
   // Subscribe to user-added lab panels (Firestore collection separate from the
   // mike-health doc). New panels are appended here; static labHistory in code
@@ -186,6 +189,19 @@ export const useHealthData = (user) => {
       // Push into the labData.js module cache so getLatestValue/getTrend see them.
       setUserLabPanels(panels);
     }, (err) => console.error('labPanels subscription error:', err));
+    return unsub;
+  }, [user]);
+
+  // Subscribe to dailyMetrics — Apple Health synced data via the
+  // mikesfitnessHealthIngest Cloud Function. Doc per day, keyed by date.
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'dailyMetrics'), orderBy('date', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const map = {};
+      snap.docs.forEach(d => { map[d.id] = { id: d.id, ...d.data() }; });
+      setDailyMetricsByDate(map);
+    }, (err) => console.error('dailyMetrics subscription error:', err));
     return unsub;
   }, [user]);
 
@@ -540,9 +556,20 @@ export const useHealthData = (user) => {
     return await deleteDoc(doc(db, 'labPanels', id));
   }, []);
 
+  // Helper: latest sync timestamp across all dailyMetrics docs (for "synced X ago" UI).
+  const lastDailyMetricsSync = (() => {
+    let latest = null;
+    for (const m of Object.values(dailyMetricsByDate)) {
+      const t = m.lastSync?.toMillis ? m.lastSync.toMillis() : null;
+      if (t && (!latest || t > latest)) latest = t;
+    }
+    return latest;
+  })();
+
   return {
     data, loading, save,
     labPanels, addLabPanel, updateLabPanel, deleteLabPanel,
+    dailyMetricsByDate, lastDailyMetricsSync,
     addWeight,
     updateAppointment, addAppointment, deleteAppointment,
     addLabResult,

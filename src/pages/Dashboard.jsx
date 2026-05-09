@@ -50,7 +50,25 @@ function Section({ title, emoji, defaultOpen = true, children }) {
 /* ─── System status helpers ─── */
 const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
-function systemStatus(key, data, dailyChecks, medChecks) {
+// Helper: prefer Apple Health synced sleep over manual sleepLog. Returns
+// { hours, source: 'apple'|'manual'|null, bedtime?, wakeTime?, quality?, stages? }
+function getTodaySleep(data, dailyMetricsByDate, todayStr) {
+  const apple = dailyMetricsByDate?.[todayStr]?.sleep;
+  if (apple?.hoursTotal) {
+    return {
+      hours: apple.hoursTotal,
+      source: 'apple',
+      stages: apple.stages,
+    };
+  }
+  const manual = data?.sleepLog?.[todayStr] || {};
+  if (manual.hours) {
+    return { hours: manual.hours, source: 'manual', bedtime: manual.bedtime, wakeTime: manual.wakeTime, quality: manual.quality };
+  }
+  return { hours: null, source: null };
+}
+
+function systemStatus(key, data, dailyChecks, medChecks, dailyMetricsByDate) {
   // Returns { status: 'green'|'yellow'|'red', label, detail }
   switch (key) {
     case 'cardio': {
@@ -144,12 +162,21 @@ function systemStatus(key, data, dailyChecks, medChecks) {
       return { status: 'yellow', label: 'No data', detail };
     }
     case 'sleep': {
-      const sleepEntry = data?.sleepLog?.[toLocalDateStr()] || {};
-      if (sleepEntry.hours) {
-        const detail = `${sleepEntry.hours.toFixed(1)} hrs · Bed ${sleepEntry.bedtime || '?'} · Wake ${sleepEntry.wakeTime || '?'}${sleepEntry.quality ? ` · Quality ${sleepEntry.quality}/5` : ''}`;
-        if (sleepEntry.hours >= 7) return { status: 'green', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
-        if (sleepEntry.hours >= 6) return { status: 'yellow', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
-        return { status: 'red', label: `${sleepEntry.hours.toFixed(1)} hrs`, detail };
+      const todayStr = toLocalDateStr();
+      const s = getTodaySleep(data, dailyMetricsByDate, todayStr);
+      if (s.hours) {
+        let detail;
+        if (s.source === 'apple') {
+          const stageBits = s.stages
+            ? Object.entries(s.stages).filter(([k]) => k !== 'inbed').map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')
+            : '';
+          detail = `${s.hours.toFixed(1)} hrs · Apple Watch${stageBits ? ` · ${stageBits}` : ''}`;
+        } else {
+          detail = `${s.hours.toFixed(1)} hrs · Bed ${s.bedtime || '?'} · Wake ${s.wakeTime || '?'}${s.quality ? ` · Quality ${s.quality}/5` : ''} · manual`;
+        }
+        if (s.hours >= 7) return { status: 'green', label: `${s.hours.toFixed(1)} hrs`, detail };
+        if (s.hours >= 6) return { status: 'yellow', label: `${s.hours.toFixed(1)} hrs`, detail };
+        return { status: 'red', label: `${s.hours.toFixed(1)} hrs`, detail };
       }
       const slept = dailyChecks['sleep'];
       const detail = slept ? 'Logged 7+ hours today' : 'Not yet logged today';
@@ -171,7 +198,9 @@ export default function Dashboard({
   data, toggleDayCompletion, getWeekKey, toggleDailyItem,
   toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry, addWaterEntry, removeWaterEntry,
   getMonthKey,
-  updateDailyItems, ...rest
+  updateDailyItems,
+  dailyMetricsByDate, lastDailyMetricsSync,
+  ...rest
 }) {
   const navigate = useNavigate();
   const weekKey = getWeekKey();
@@ -340,7 +369,7 @@ export default function Dashboard({
     { key: 'muscle', label: 'Muscle', emoji: '💪' },
     { key: 'gut', label: 'Gut', emoji: '🦠' },
     { key: 'sleep', label: 'Sleep', emoji: '😴' },
-  ].map(s => ({ ...s, ...systemStatus(s.key, data, dailyChecks, medChecks) })),
+  ].map(s => ({ ...s, ...systemStatus(s.key, data, dailyChecks, medChecks, dailyMetricsByDate) })),
   [data, dailyChecks, medChecks]);
 
   // Key numbers
@@ -402,7 +431,20 @@ export default function Dashboard({
       <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg(scores.overall)}`}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mike's Health OS</div>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mike's Health OS</div>
+              {lastDailyMetricsSync && (() => {
+                const minsAgo = Math.round((Date.now() - lastDailyMetricsSync) / 60000);
+                const ago = minsAgo < 60 ? `${minsAgo}m` : minsAgo < 1440 ? `${Math.round(minsAgo/60)}h` : `${Math.round(minsAgo/1440)}d`;
+                const fresh = minsAgo < 90;
+                return (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${fresh ? 'bg-emerald-900/40 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                    title={`Last Apple Health sync: ${new Date(lastDailyMetricsSync).toLocaleString()}`}>
+                    ⌚ {ago} ago
+                  </span>
+                );
+              })()}
+            </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className={`text-4xl font-bold ${scoreColor(scores.overall)}`}>{scores.overall}</span>
               <span className="text-slate-500 text-sm">/ 100</span>

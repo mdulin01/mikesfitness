@@ -29,14 +29,18 @@ const ALL_EXERCISES = [
   { id: 'custom', name: 'Custom Exercise', sets: 3, reps: '10', source: 'extra' },
 ];
 
-export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry, saveWorkoutDetail, addAppointment, saveExerciseLog, saveStepsEntry, ...rest }) {
+export default function Training({ data, toggleDayCompletion, getWeekKey, saveWeekNotes, addSwimEntry, saveWorkoutDetail, addAppointment, saveExerciseLog, saveStepsEntry, dailyMetricsByDate, ...rest }) {
   const [view, setView] = useState('week');
   const [stepsInput, setStepsInput] = useState('');
   const weekKey = getWeekKey();
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayDow = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const todayStr = toLocalDateStr();
-  const todaySteps = data?.stepsLog?.[toLocalDateStr()]?.steps;
+  // Prefer Apple Health synced steps; fall back to manual stepsLog.
+  const appleSteps = dailyMetricsByDate?.[todayStr]?.activity?.steps;
+  const manualSteps = data?.stepsLog?.[toLocalDateStr()]?.steps;
+  const todaySteps = appleSteps ?? manualSteps;
+  const stepsSource = appleSteps != null ? 'apple' : (manualSteps != null ? 'manual' : null);
 
   // Navigate weeks
   const [weekOffset, setWeekOffset] = useState(0);
@@ -364,14 +368,21 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                 <div className="text-xs text-slate-500">Target: {healthPlan.exerciseTargets.strengthDays}</div>
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 mb-1">Steps</div>
-                <div className="text-lg font-bold text-white">{todaySteps ? todaySteps.toLocaleString() : '—'}</div>
-                <div className="flex gap-1 mt-1">
-                  <input type="number" placeholder="Steps" value={stepsInput} onChange={e => setStepsInput(e.target.value)}
-                    className="w-20 bg-slate-600 border border-slate-500 rounded px-1 py-0.5 text-white text-xs" />
-                  <button onClick={() => { if(stepsInput) { saveStepsEntry(toLocalDateStr(), stepsInput); setStepsInput(''); }}}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded">+</button>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-slate-400">Steps</div>
+                  {stepsSource === 'apple' && (
+                    <span className="text-[9px] bg-emerald-900/50 text-emerald-400 px-1.5 py-0.5 rounded-full" title="Synced from Apple Health">⌚ synced</span>
+                  )}
                 </div>
+                <div className="text-lg font-bold text-white">{todaySteps ? todaySteps.toLocaleString() : '—'}</div>
+                {stepsSource !== 'apple' && (
+                  <div className="flex gap-1 mt-1">
+                    <input type="number" placeholder="Steps" value={stepsInput} onChange={e => setStepsInput(e.target.value)}
+                      className="w-20 bg-slate-600 border border-slate-500 rounded px-1 py-0.5 text-white text-xs" />
+                    <button onClick={() => { if(stepsInput) { saveStepsEntry(toLocalDateStr(), stepsInput); setStepsInput(''); }}}
+                      className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded">+</button>
+                  </div>
+                )}
                 <div className="text-xs text-slate-500">Target: 10,000</div>
               </div>
               <div className="bg-slate-700/50 rounded-lg p-3">
