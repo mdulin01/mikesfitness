@@ -559,19 +559,45 @@ export const monitoringSchedule = [
   { test: 'PSA', frequency: 'Yearly', nextDue: '2027-03', category: 'cancer' },
 ];
 
-// Helper: get latest value for a given test across all lab dates
+// User-added lab panels from Firestore are kept in a module-level cache so the
+// query helpers below stay synchronous and call sites don't need to thread state
+// through every component. useHealthData calls setUserLabPanels() whenever the
+// labPanels Firestore subscription fires; React then re-renders consumers and
+// the helpers see the merged data.
+let _userPanels = [];
+export function setUserLabPanels(panels) {
+  _userPanels = Array.isArray(panels) ? panels : [];
+}
+
+// Combined static + Firestore panels, sorted ascending by date.
+export function getAllLabPanels() {
+  return [...labHistory, ..._userPanels].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Helper: get latest value for a given test across all lab dates (static + user)
 export function getLatestValue(testName) {
-  for (let i = labHistory.length - 1; i >= 0; i--) {
-    const v = labHistory[i].values[testName];
-    if (v && v.value != null) return { ...v, date: labHistory[i].date };
+  const all = getAllLabPanels();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const v = all[i].values[testName];
+    if (v && v.value != null) return { ...v, date: all[i].date };
   }
   return null;
 }
 
 // Helper: get trend data (all values over time) for a given test
 export function getTrend(testName) {
-  return labHistory
+  return getAllLabPanels()
     .filter(h => h.values[testName]?.value != null)
     .map(h => ({ date: h.date, value: h.values[testName].value }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Collect every distinct test name we know about — used for autocomplete in the
+// New Lab Panel form so users get suggestions instead of typing freehand.
+export function getKnownTestNames() {
+  const names = new Set();
+  for (const panel of getAllLabPanels()) {
+    for (const name of Object.keys(panel.values || {})) names.add(name);
+  }
+  return Array.from(names).sort();
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { labHistory, keyMetrics, getTrend, getLatestValue } from '../data/labData';
 import { imagingHistory, colonoscopyTimeline, cardiacSummary, getResultsByCategory } from '../data/imagingData';
+import LabPanelForm from '../components/LabPanelForm';
 
 // Reusable Section component
 function Section({ title, emoji, defaultOpen = true, children }) {
@@ -135,8 +136,10 @@ function MedicationsTab() {
 }
 
 // Tab 3: Labs
-function LabsTab() {
+function LabsTab({ labPanels = [], addLabPanel, updateLabPanel, deleteLabPanel }) {
   const [expandedDate, setExpandedDate] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingPanel, setEditingPanel] = useState(null); // Firestore panel being edited
 
   const keyLabValues = [
     { marker: 'ApoB', goal: 70, unit: 'mg/dL' },
@@ -165,6 +168,33 @@ function LabsTab() {
     if (curr > prev) return '↑';
     if (curr < prev) return '↓';
     return '→';
+  };
+
+  // Build a unified, date-descending list of panels with provenance so the user
+  // can see and edit Firestore-added panels alongside the static ones.
+  const userPanelDates = new Set(labPanels.map(p => p.date + '|' + (p.source || '')));
+  const merged = [
+    ...labPanels.map(p => ({ ...p, _source: 'firestore' })),
+    ...labHistory
+      .filter(p => !userPanelDates.has(p.date + '|' + (p.source || '')))
+      .map(p => ({ ...p, _source: 'static' })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
+  const handleSubmit = async (panel) => {
+    if (editingPanel) {
+      await updateLabPanel(editingPanel.id, panel);
+    } else {
+      await addLabPanel(panel);
+    }
+    setShowForm(false);
+    setEditingPanel(null);
+  };
+
+  const handleDelete = async () => {
+    if (!editingPanel) return;
+    await deleteLabPanel(editingPanel.id);
+    setShowForm(false);
+    setEditingPanel(null);
   };
 
   return (
@@ -203,15 +233,27 @@ function LabsTab() {
         </div>
       </Section>
 
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">All Lab Panels</h2>
+        <button
+          onClick={() => { setEditingPanel(null); setShowForm(true); }}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+        >
+          + New Panel
+        </button>
+      </div>
+
       <Section title="Lab History" emoji="📊" defaultOpen={true}>
         <div className="space-y-2">
-          {labHistory.slice().reverse().map((lab, i) => {
-            const isExpanded = expandedDate === lab.date;
-            const flagged = Object.entries(lab.values).filter(([, d]) => d.flag);
+          {merged.map((lab, i) => {
+            const key = lab.id || `${lab.date}-${i}`;
+            const isExpanded = expandedDate === key;
+            const flagged = Object.entries(lab.values || {}).filter(([, d]) => d.flag);
+            const isUserPanel = lab._source === 'firestore';
             return (
-              <div key={i} className="bg-slate-750 rounded-lg border border-slate-700 overflow-hidden">
+              <div key={key} className="bg-slate-750 rounded-lg border border-slate-700 overflow-hidden">
                 <button
-                  onClick={() => setExpandedDate(isExpanded ? null : lab.date)}
+                  onClick={() => setExpandedDate(isExpanded ? null : key)}
                   className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-700/50 transition"
                 >
                   <div className="flex items-center gap-3">
@@ -219,10 +261,21 @@ function LabsTab() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       lab.source === 'NIH Clinical Center' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'
                     }`}>{lab.source}</span>
+                    {lab.provider && <span className="text-xs text-slate-500">{lab.provider}</span>}
+                    {isUserPanel && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400" title="Added via app">app</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {flagged.length > 0 && (
                       <span className="text-xs text-red-400">{flagged.length} flagged</span>
+                    )}
+                    {isUserPanel && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingPanel(lab); setShowForm(true); }}
+                        className="text-xs text-blue-400 hover:text-blue-300 px-1"
+                        title="Edit panel"
+                      >Edit</button>
                     )}
                     <span className="text-slate-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
@@ -230,7 +283,7 @@ function LabsTab() {
                 {isExpanded && (
                   <div className="px-3 pb-3">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                      {Object.entries(lab.values).map(([name, data], j) => (
+                      {Object.entries(lab.values || {}).map(([name, data], j) => (
                         <div key={j} className={`p-2 rounded ${data.flag ? 'bg-red-400/10' : ''}`}>
                           <span className="text-slate-500">{name}</span>
                           <div className="flex items-baseline gap-1">
@@ -251,6 +304,15 @@ function LabsTab() {
           })}
         </div>
       </Section>
+
+      {showForm && (
+        <LabPanelForm
+          initial={editingPanel || undefined}
+          onSubmit={handleSubmit}
+          onCancel={() => { setShowForm(false); setEditingPanel(null); }}
+          onDelete={editingPanel ? handleDelete : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -831,7 +893,7 @@ function VisitPrepTab() {
 }
 
 // Main component
-export default function Medical({ data, save, addLabResult, ...rest }) {
+export default function Medical({ data, save, addLabResult, labPanels, addLabPanel, updateLabPanel, deleteLabPanel, ...rest }) {
   const [activeTab, setActiveTab] = useState('problems');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -864,7 +926,7 @@ export default function Medical({ data, save, addLabResult, ...rest }) {
       case 'visit-prep': return <VisitPrepTab />;
       case 'problems': return <ProblemsTab />;
       case 'medications': return <MedicationsTab />;
-      case 'labs': return <LabsTab />;
+      case 'labs': return <LabsTab labPanels={labPanels} addLabPanel={addLabPanel} updateLabPanel={updateLabPanel} deleteLabPanel={deleteLabPanel} />;
       case 'imaging': return <ImagingTab />;
       case 'hprc': return <HPRCTab />;
       case 'kidney': return <KidneyTab />;

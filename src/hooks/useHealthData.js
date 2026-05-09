@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase-config';
-import { doc, setDoc, onSnapshot, deleteField } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, deleteField, collection, query, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
+import { setUserLabPanels } from '../data/labData';
 import { toLocalDateStr } from '../utils/dateUtils';
 
 // Remove undefined values before writing to Firestore (null is kept intentionally for resets)
@@ -171,6 +172,22 @@ const defaultData = {
 export const useHealthData = (user) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [labPanels, setLabPanels] = useState([]);
+
+  // Subscribe to user-added lab panels (Firestore collection separate from the
+  // mike-health doc). New panels are appended here; static labHistory in code
+  // remains the historical reference.
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'labPanels'), orderBy('date', 'asc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const panels = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLabPanels(panels);
+      // Push into the labData.js module cache so getLatestValue/getTrend see them.
+      setUserLabPanels(panels);
+    }, (err) => console.error('labPanels subscription error:', err));
+    return unsub;
+  }, [user]);
 
   // Listen to health data
   useEffect(() => {
@@ -481,8 +498,51 @@ export const useHealthData = (user) => {
     save({ stepsLog: log });
   }, [data, save]);
 
+  // ========== LAB PANELS (Firestore collection) ==========
+  // Strip empty/undefined fields so Firestore doesn't reject the write and so
+  // optional fields like `note` don't get persisted as empty strings.
+  const cleanPanel = (panel) => {
+    const values = {};
+    for (const [name, v] of Object.entries(panel.values || {})) {
+      if (!name || (v.value === '' || v.value == null)) continue;
+      const cleaned = { value: v.value, unit: v.unit || '' };
+      if (v.flag) cleaned.flag = v.flag; else cleaned.flag = null;
+      if (v.ref) cleaned.ref = v.ref;
+      if (v.note) cleaned.note = v.note;
+      values[name] = cleaned;
+    }
+    return {
+      date: panel.date,
+      source: panel.source || '',
+      ...(panel.provider ? { provider: panel.provider } : {}),
+      values,
+    };
+  };
+
+  const addLabPanel = useCallback(async (panel) => {
+    const cleaned = cleanPanel(panel);
+    return await addDoc(collection(db, 'labPanels'), {
+      ...cleaned,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }, []);
+
+  const updateLabPanel = useCallback(async (id, panel) => {
+    const cleaned = cleanPanel(panel);
+    return await updateDoc(doc(db, 'labPanels', id), {
+      ...cleaned,
+      updatedAt: serverTimestamp(),
+    });
+  }, []);
+
+  const deleteLabPanel = useCallback(async (id) => {
+    return await deleteDoc(doc(db, 'labPanels', id));
+  }, []);
+
   return {
     data, loading, save,
+    labPanels, addLabPanel, updateLabPanel, deleteLabPanel,
     addWeight,
     updateAppointment, addAppointment, deleteAppointment,
     addLabResult,
