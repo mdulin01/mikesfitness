@@ -27,32 +27,48 @@ const HEALTH_INGEST_TOKEN = defineSecret('HEALTH_INGEST_TOKEN');
 // agg: 'sum' (per-day total), 'avg' (per-day mean), 'latest' (newest value),
 //      'min', 'max'.
 const METRIC_MAP = {
-  // Activity
-  step_count:                 { path: ['activity', 'steps'],            agg: 'sum' },
-  distance_walking_running:   { path: ['activity', 'distanceMiles'],    agg: 'sum' },
-  active_energy:              { path: ['activity', 'activeEnergyKcal'], agg: 'sum' },
-  basal_energy_burned:        { path: ['activity', 'basalEnergyKcal'],  agg: 'sum' },
-  apple_exercise_time:        { path: ['activity', 'exerciseMinutes'],  agg: 'sum' },
-  apple_stand_time:           { path: ['activity', 'standMinutes'],     agg: 'sum' },
-  flights_climbed:            { path: ['activity', 'flightsClimbed'],   agg: 'sum' },
+  // Activity (note: HAE uses walking_running_distance and apple_stand_hour, not the
+  // names I had originally guessed — corrected after first sync.)
+  step_count:                         { path: ['activity', 'steps'],                        agg: 'sum' },
+  walking_running_distance:           { path: ['activity', 'distanceMiles'],                agg: 'sum' },
+  active_energy:                      { path: ['activity', 'activeEnergyKcal'],             agg: 'sum' },
+  basal_energy_burned:                { path: ['activity', 'basalEnergyKcal'],              agg: 'sum' },
+  apple_exercise_time:                { path: ['activity', 'exerciseMinutes'],              agg: 'sum' },
+  apple_stand_hour:                   { path: ['activity', 'standHours'],                   agg: 'sum' },
+  flights_climbed:                    { path: ['activity', 'flightsClimbed'],               agg: 'sum' },
+  time_in_daylight:                   { path: ['activity', 'daylightMinutes'],              agg: 'sum' },
+
+  // Walking quality (gait analysis from iPhone/Apple Watch)
+  walking_speed:                      { path: ['gait', 'walkingSpeed'],                     agg: 'avg' },
+  walking_step_length:                { path: ['gait', 'stepLengthCm'],                     agg: 'avg' },
+  walking_double_support_percentage:  { path: ['gait', 'doubleSupportPct'],                 agg: 'avg' },
+  walking_asymmetry_percentage:       { path: ['gait', 'asymmetryPct'],                     agg: 'avg' },
+  stair_speed_up:                     { path: ['gait', 'stairSpeedUp'],                     agg: 'avg' },
+  stair_speed_down:                   { path: ['gait', 'stairSpeedDown'],                   agg: 'avg' },
+  six_minute_walking_test_distance:   { path: ['fitness', 'sixMinWalkDistance'],            agg: 'latest' },
 
   // Vitals
-  heart_rate:                 { path: ['vitals', 'heartRateAvg'],       agg: 'avg' },
-  resting_heart_rate:         { path: ['vitals', 'heartRateRest'],      agg: 'latest' },
-  walking_heart_rate_average: { path: ['vitals', 'heartRateWalking'],   agg: 'latest' },
-  heart_rate_variability:     { path: ['vitals', 'hrv'],                agg: 'avg' },
-  respiratory_rate:           { path: ['vitals', 'respiratoryRate'],    agg: 'avg' },
-  oxygen_saturation:          { path: ['vitals', 'spo2'],               agg: 'avg' },
-  weight_body_mass:           { path: ['vitals', 'weightLbs'],          agg: 'latest' },
-  body_fat_percentage:        { path: ['vitals', 'bodyFatPct'],         agg: 'latest' },
-  lean_body_mass:             { path: ['vitals', 'leanBodyMassLbs'],    agg: 'latest' },
-  blood_pressure_systolic:    { path: ['vitals', 'bpSystolic'],         agg: 'latest' },
-  blood_pressure_diastolic:   { path: ['vitals', 'bpDiastolic'],        agg: 'latest' },
-  body_temperature:           { path: ['vitals', 'tempF'],              agg: 'latest' },
+  heart_rate:                         { path: ['vitals', 'heartRateAvg'],                   agg: 'avg' },
+  resting_heart_rate:                 { path: ['vitals', 'heartRateRest'],                  agg: 'latest' },
+  walking_heart_rate_average:         { path: ['vitals', 'heartRateWalking'],               agg: 'latest' },
+  heart_rate_variability:             { path: ['vitals', 'hrv'],                            agg: 'avg' },
+  respiratory_rate:                   { path: ['vitals', 'respiratoryRate'],                agg: 'avg' },
+  oxygen_saturation:                  { path: ['vitals', 'spo2'],                           agg: 'avg' },
+  weight_body_mass:                   { path: ['vitals', 'weightLbs'],                      agg: 'latest' },
+  body_fat_percentage:                { path: ['vitals', 'bodyFatPct'],                     agg: 'latest' },
+  lean_body_mass:                     { path: ['vitals', 'leanBodyMassLbs'],                agg: 'latest' },
+  blood_pressure_systolic:            { path: ['vitals', 'bpSystolic'],                     agg: 'latest' },
+  blood_pressure_diastolic:           { path: ['vitals', 'bpDiastolic'],                    agg: 'latest' },
+  body_temperature:                   { path: ['vitals', 'tempF'],                          agg: 'latest' },
 
-  // Wellness
-  mindful_session:            { path: ['wellness', 'mindfulMinutes'],   agg: 'sum' },
-  vo2_max:                    { path: ['fitness', 'vo2max'],            agg: 'latest' },
+  // Environment / hearing
+  headphone_audio_exposure:           { path: ['environment', 'headphoneAudioDb'],          agg: 'avg' },
+  environmental_audio_exposure:       { path: ['environment', 'ambientAudioDb'],            agg: 'avg' },
+
+  // Wellness / fitness
+  mindful_session:                    { path: ['wellness', 'mindfulMinutes'],               agg: 'sum' },
+  physical_effort:                    { path: ['wellness', 'physicalEffort'],               agg: 'avg' },
+  vo2_max:                            { path: ['fitness', 'vo2max'],                        agg: 'latest' },
 
   // Sleep handled separately because it has stages with start/end times.
 };
