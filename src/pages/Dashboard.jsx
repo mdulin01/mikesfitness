@@ -531,6 +531,57 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* ══════ TODAY'S APPLE HEALTH ACTIVITY (auto-hides metrics that aren't synced yet) ══════ */}
+      {(() => {
+        const todayMetrics = dailyMetricsByDate?.[todayStr];
+        if (!todayMetrics) return null;
+        const a = todayMetrics.activity || {};
+        const v = todayMetrics.vitals || {};
+        const env = todayMetrics.environment || {};
+        const sleep = todayMetrics.sleep;
+        // Compose tiles only when we actually have data, so the panel stays clean
+        // on days without much sync (e.g., before the watch is worn).
+        const tiles = [];
+        if (a.steps != null) tiles.push({ label: 'Steps', value: Math.round(a.steps).toLocaleString(), sub: a.distanceMiles ? `${a.distanceMiles.toFixed(2)} mi` : null });
+        if (a.activeEnergyKcal != null) tiles.push({ label: 'Active Cal', value: Math.round(a.activeEnergyKcal), sub: 'kcal' });
+        if (a.exerciseMinutes != null) tiles.push({ label: 'Exercise', value: Math.round(a.exerciseMinutes), sub: 'min' });
+        if (a.standHours != null) tiles.push({ label: 'Stand', value: Math.round(a.standHours), sub: 'hours' });
+        if (a.flightsClimbed != null) tiles.push({ label: 'Floors', value: Math.round(a.flightsClimbed), sub: 'climbed' });
+        if (a.swimDistanceMeters != null) tiles.push({ label: 'Swim', value: Math.round(a.swimDistanceMeters).toLocaleString(), sub: `yds${a.swimStrokes ? ` · ${Math.round(a.swimStrokes)} strokes` : ''}` });
+        if (a.daylightMinutes != null) tiles.push({ label: 'Daylight', value: Math.round(a.daylightMinutes), sub: 'min' });
+        if (sleep?.hoursTotal) {
+          const stages = sleep.stages || {};
+          const stageBits = [stages.deep && `D ${stages.deep.toFixed(1)}`, stages.rem && `R ${stages.rem.toFixed(1)}`, stages.core && `C ${stages.core.toFixed(1)}`].filter(Boolean).join(' · ');
+          tiles.push({ label: 'Sleep', value: sleep.hoursTotal.toFixed(1), sub: stageBits || 'hrs' });
+        }
+        if (v.heartRateRest != null) tiles.push({ label: 'Resting HR', value: Math.round(v.heartRateRest), sub: 'bpm' });
+        if (v.hrv != null) tiles.push({ label: 'HRV', value: Math.round(v.hrv), sub: 'ms' });
+        if (v.weightLbs != null) tiles.push({ label: 'Weight', value: v.weightLbs.toFixed(1), sub: 'lbs' });
+        if (v.bodyFatPct != null) tiles.push({ label: 'Body Fat', value: `${(v.bodyFatPct * 100).toFixed(1)}%`, sub: '' });
+        if (v.spo2 != null) tiles.push({ label: 'SpO₂', value: `${(v.spo2 * 100).toFixed(0)}%`, sub: '' });
+        if (env.underwaterTempF != null) tiles.push({ label: 'Pool Temp', value: env.underwaterTempF.toFixed(1), sub: '°F' });
+        if (tiles.length === 0) return null;
+        return (
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs text-slate-400 uppercase tracking-wide font-semibold">⌚ Today from Apple Health</h3>
+              {todayMetrics.lastSync?.toMillis && (
+                <span className="text-[10px] text-slate-500">synced {new Date(todayMetrics.lastSync.toMillis()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+              {tiles.map((t, i) => (
+                <div key={i} className="bg-slate-900/40 rounded-lg p-2 text-center">
+                  <div className="text-[10px] text-slate-500 uppercase">{t.label}</div>
+                  <div className="text-base font-bold text-white leading-tight">{t.value}</div>
+                  {t.sub && <div className="text-[10px] text-slate-500 truncate" title={t.sub}>{t.sub}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══════ TODAY'S CHECKLIST (compact) ══════ */}
       <div className="flex gap-1.5 flex-wrap">
         {todayItems.map(item => (
