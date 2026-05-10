@@ -4,7 +4,27 @@ import { doc, setDoc, onSnapshot, deleteField, collection, query, orderBy, addDo
 import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 import { setUserLabPanels } from '../data/labData';
+import { wrightsvilleTriPlan } from '../data/triathlonPlan';
 import { toLocalDateStr } from '../utils/dateUtils';
+
+// Shared fitness data lives in the same Firestore project as mikeandadam.
+// Both apps read/write to `tripData/fitness`. mikesfitness sees ALL events
+// (couples + Mike-only); mikeandadam filters to shared races only.
+const TRI_EVENT_ID = 'tri-wrightsville-2026';
+const TRI_EVENT_DEFAULT = {
+  id: TRI_EVENT_ID,
+  name: 'Wrightsville Beach Sprint Tri',
+  emoji: '🏊',
+  date: '2026-09-27',
+  type: 'triathlon',
+  location: 'Wrightsville Beach, NC',
+  color: 'from-blue-400 to-cyan-500',
+  status: 'active',
+  owner: 'mike',
+  swim: '1500m ocean',
+  bike: '~12 mi sprint',
+  run: '5K',
+};
 
 // Remove undefined values before writing to Firestore (null is kept intentionally for resets)
 const stripUndefined = (obj) => JSON.parse(JSON.stringify(obj));
@@ -176,6 +196,9 @@ export const useHealthData = (user) => {
   // dailyMetrics docs are keyed by YYYY-MM-DD; keep them as a map for O(1) lookup
   // by date and a sorted array for charts/trends.
   const [dailyMetricsByDate, setDailyMetricsByDate] = useState({});
+  // Shared fitness data (races + training plans) lives in `tripData/fitness`,
+  // shared with mikeandadam. { events: [...], trainingPlans: { [eventId]: [...weeks] } }
+  const [sharedFitness, setSharedFitness] = useState({ events: [], trainingPlans: {} });
 
   // Subscribe to user-added lab panels (Firestore collection separate from the
   // mike-health doc). New panels are appended here; static labHistory in code
@@ -202,6 +225,43 @@ export const useHealthData = (user) => {
       snap.docs.forEach(d => { map[d.id] = { id: d.id, ...d.data() }; });
       setDailyMetricsByDate(map);
     }, (err) => console.error('dailyMetrics subscription error:', err));
+    return unsub;
+  }, [user]);
+
+  // Subscribe to shared fitness data (races + plans) at tripData/fitness.
+  // mikeandadam writes here too — workout check-offs sync both ways automatically
+  // since both apps read/write the same Firestore record.
+  // On first load, ensure Mike's tri event + plan are present (lazy seed).
+  useEffect(() => {
+    if (!user) return;
+    const docRef = doc(db, 'tripData', 'fitness');
+    const unsub = onSnapshot(docRef, async (snap) => {
+      if (!snap.exists()) {
+        setSharedFitness({ events: [TRI_EVENT_DEFAULT], trainingPlans: { [TRI_EVENT_ID]: wrightsvilleTriPlan } });
+        return;
+      }
+      const data = snap.data();
+      const events = data.events || [];
+      const plans = data.trainingPlans || {};
+      // Ensure tri event present
+      const hasTri = events.some(e => e.id === TRI_EVENT_ID);
+      if (!hasTri) {
+        try {
+          await setDoc(docRef, {
+            events: [...events, TRI_EVENT_DEFAULT],
+            trainingPlans: { ...plans, [TRI_EVENT_ID]: wrightsvilleTriPlan },
+          }, { merge: true });
+        } catch (e) { console.error('seed tri error:', e); }
+      } else if (!plans[TRI_EVENT_ID]) {
+        // Event exists but plan doesn't — seed plan
+        try {
+          await setDoc(docRef, {
+            trainingPlans: { ...plans, [TRI_EVENT_ID]: wrightsvilleTriPlan },
+          }, { merge: true });
+        } catch (e) { console.error('seed tri plan error:', e); }
+      }
+      setSharedFitness({ events, trainingPlans: plans });
+    }, (err) => console.error('sharedFitness subscription error:', err));
     return unsub;
   }, [user]);
 
@@ -514,6 +574,44 @@ export const useHealthData = (user) => {
     save({ stepsLog: log });
   }, [data, save]);
 
+  // ========== SHARED FITNESS (tripData/fitness) ==========
+  // All operations write to the same Firestore record mikeandadam reads, so
+  // checking off a run in either app updates the other instantly.
+
+  // Toggle a single workout's `mike` flag (or `adam` flag — caller specifies field).
+  // workoutType is 'runs' | 'crossTraining' | 'bikes' | 'swims'.
+  const toggleSharedWorkout = useCallback(async (eventId, weekId, workoutType, workoutId, field = 'mike') => {
+    const plans = sharedFitness.trainingPlans || {};
+    const plan = plans[eventId];
+    if (!plan) return;
+    const newPlan = plan.map(week => {
+      if (week.id !== weekId) return week;
+      const arr = week[workoutType] || [];
+      const updated = arr.map(w => w.id === workoutId ? { ...w, [field]: !w[field] } : w);
+      return { ...week, [workoutType]: updated };
+    });
+    const newPlans = { ...plans, [eventId]: newPlan };
+    setSharedFitness(s => ({ ...s, trainingPlans: newPlans }));
+    try {
+      await setDoc(doc(db, 'tripData', 'fitness'), { trainingPlans: newPlans }, { merge: true });
+    } catch (err) { console.error('toggleSharedWorkout error:', err); }
+  }, [sharedFitness]);
+
+  // Save a week's reflection ({wentWell, feeling, notes}) on the tri plan.
+  const saveTriReflection = useCallback(async (eventId, weekId, reflection) => {
+    const plans = sharedFitness.trainingPlans || {};
+    const plan = plans[eventId];
+    if (!plan) return;
+    const newPlan = plan.map(week =>
+      week.id === weekId ? { ...week, reflection: { ...(week.reflection || {}), ...reflection } } : week
+    );
+    const newPlans = { ...plans, [eventId]: newPlan };
+    setSharedFitness(s => ({ ...s, trainingPlans: newPlans }));
+    try {
+      await setDoc(doc(db, 'tripData', 'fitness'), { trainingPlans: newPlans }, { merge: true });
+    } catch (err) { console.error('saveTriReflection error:', err); }
+  }, [sharedFitness]);
+
   // ========== LAB PANELS (Firestore collection) ==========
   // Strip empty/undefined fields so Firestore doesn't reject the write and so
   // optional fields like `note` don't get persisted as empty strings.
@@ -570,6 +668,8 @@ export const useHealthData = (user) => {
     data, loading, save,
     labPanels, addLabPanel, updateLabPanel, deleteLabPanel,
     dailyMetricsByDate, lastDailyMetricsSync,
+    sharedFitness, toggleSharedWorkout, saveTriReflection,
+    triEventId: TRI_EVENT_ID,
     addWeight,
     updateAppointment, addAppointment, deleteAppointment,
     addLabResult,

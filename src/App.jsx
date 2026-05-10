@@ -10,6 +10,7 @@ import Health from './pages/Health';
 import Nutrition from './pages/Nutrition';
 import Medical from './pages/Medical';
 import Life from './pages/Life';
+import Triathlon from './pages/Triathlon';
 
 export default function App() {
   const { user, loading: authLoading, login, logout } = useAuth();
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/health" element={<Health {...healthData} />} />
             <Route path="/medical" element={<Medical {...healthData} />} />
             <Route path="/life" element={<Life {...healthData} />} />
+            <Route path="/triathlon" element={<Triathlon {...healthData} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">

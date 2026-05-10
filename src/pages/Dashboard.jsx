@@ -199,6 +199,7 @@ export default function Dashboard({
   getMonthKey,
   updateDailyItems,
   dailyMetricsByDate, lastDailyMetricsSync,
+  sharedFitness, toggleSharedWorkout, triEventId,
   ...rest
 }) {
   const navigate = useNavigate();
@@ -611,6 +612,84 @@ export default function Dashboard({
           <p className="text-xs text-blue-400 mt-1">— {quote.author || quote.source}</p>
         )}
       </div>
+
+      {/* ══════ THIS WEEK IN TRAINING (combined: tri bike+swim + active running plan) ══════ */}
+      {(() => {
+        const triPlan = sharedFitness?.trainingPlans?.[triEventId];
+        const triEvent = sharedFitness?.events?.find(e => e.id === triEventId);
+        const currentTriWeek = triPlan?.find(w => w.startDate <= todayStr && w.endDate >= todayStr);
+
+        // Find all running workouts for this week from any non-tri shared event
+        const weekRuns = [];
+        for (const event of (sharedFitness?.events || [])) {
+          if (event.id === triEventId) continue;
+          const runPlan = sharedFitness?.trainingPlans?.[event.id];
+          if (!runPlan) continue;
+          const matching = runPlan.find(w => currentTriWeek && (w.startDate === currentTriWeek.startDate || (w.startDate <= currentTriWeek.startDate && w.endDate >= currentTriWeek.endDate)));
+          if (matching?.runs) {
+            for (const r of matching.runs) {
+              weekRuns.push({ ...r, _eventId: event.id, _weekId: matching.id, _eventName: event.name });
+            }
+          }
+        }
+
+        if (!currentTriWeek && weekRuns.length === 0) return null;
+
+        const tile = (label, emoji, done, distance, onToggle) => (
+          <button onClick={onToggle}
+            className={`flex items-center gap-2 p-2 rounded-lg text-xs text-left transition w-full ${
+              done ? 'bg-emerald-900/30 border border-emerald-700/40' : 'bg-slate-700/40 border border-slate-700 hover:bg-slate-700'
+            }`}>
+            <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500'}`}>
+              {done && <span className="text-white text-[10px] font-bold">✓</span>}
+            </span>
+            <span>{emoji}</span>
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium truncate ${done ? 'text-emerald-300 line-through' : 'text-white'}`}>{label}</div>
+              {distance && <div className="text-[10px] text-slate-400 truncate">{distance}</div>}
+            </div>
+          </button>
+        );
+
+        const allWorkouts = [
+          ...weekRuns.map(r => ({ kind: 'run', w: r })),
+          ...(currentTriWeek?.bikes || []).map(b => ({ kind: 'bike', w: b })),
+          ...(currentTriWeek?.swims || []).map(s => ({ kind: 'swim', w: s })),
+        ];
+        const doneCount = allWorkouts.filter(x => x.w.mike).length;
+
+        return (
+          <div className="bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-blue-700/40 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-blue-300/80 font-semibold">This Week in Training</div>
+                <div className="text-base font-bold text-white">
+                  {currentTriWeek ? `Week ${currentTriWeek.weekNumber} of ${triPlan.length} · ${currentTriWeek.phase}` : 'Run plan only'}
+                  {triEvent && <span className="text-xs text-slate-400 ml-2 font-normal">→ {triEvent.name}</span>}
+                </div>
+                {currentTriWeek?.weekNotes && <div className="text-xs text-slate-400 mt-0.5">{currentTriWeek.weekNotes}</div>}
+              </div>
+              <a href="/triathlon" className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium whitespace-nowrap">View full plan →</a>
+            </div>
+            <div className="text-xs text-slate-400 mb-2">{doneCount}/{allWorkouts.length} workouts complete</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {allWorkouts.map(({ kind, w }) => {
+                const isRun = kind === 'run';
+                const onClick = () => isRun
+                  ? toggleSharedWorkout(w._eventId, w._weekId, 'runs', w.id, 'mike')
+                  : toggleSharedWorkout(triEventId, currentTriWeek.id, kind === 'bike' ? 'bikes' : 'swims', w.id, 'mike');
+                const emoji = isRun ? '🏃' : kind === 'bike' ? '🚴' : '🏊';
+                const distance = w.distance + (w.duration ? ` · ${w.duration}` : '');
+                return (
+                  <div key={`${kind}-${w._eventId || ''}-${w.id}`}>
+                    {tile(w.label, emoji, !!w.mike, distance, onClick)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══════ TODAY'S WORKOUT ══════ */}
       {todayPlan && (
