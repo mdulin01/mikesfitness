@@ -195,7 +195,7 @@ const STATUS_COLORS = {
 };
 
 export default function Dashboard({
-  data, toggleDayCompletion, getWeekKey, toggleDailyItem,
+  data, save, toggleDayCompletion, getWeekKey, toggleDailyItem,
   toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry,
   getMonthKey,
   updateDailyItems,
@@ -973,6 +973,16 @@ export default function Dashboard({
             const required = group.items.filter(i => !i.optional);
             const checkedInGroup = required.filter(i => medChecks[i.name]).length;
             const groupDone = checkedInGroup === required.length;
+            // Bulk-toggle handler. Calling toggleMedCheck() in a loop would race
+            // (each call captures stale `data`) — write the whole map in one save.
+            const toggleAllInGroup = () => {
+              const checks = { ...(data?.medicationChecks || {}) };
+              if (!checks[todayStr]) checks[todayStr] = { ...checks[todayStr] };
+              else checks[todayStr] = { ...checks[todayStr] };
+              const target = !groupDone; // if not all done → mark all true; if all done → clear all
+              for (const item of required) checks[todayStr][item.name] = target;
+              save?.({ medicationChecks: checks });
+            };
             return (
               <div key={group.time} className={`p-3 rounded-lg transition-all ${
                 groupDone ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
@@ -981,6 +991,17 @@ export default function Dashboard({
                   <span className="text-base">{group.emoji}</span>
                   <span className={`text-sm font-medium ${groupDone ? 'text-green-400' : 'text-slate-300'}`}>{group.label}</span>
                   <span className="text-xs text-slate-500 ml-auto">{checkedInGroup}/{required.length}</span>
+                  <button
+                    onClick={toggleAllInGroup}
+                    className={`text-[10px] font-semibold px-2 py-1 rounded-full border transition ${
+                      groupDone
+                        ? 'border-slate-600 text-slate-400 hover:bg-slate-600/30'
+                        : 'border-green-600 text-green-400 hover:bg-green-600/20'
+                    }`}
+                    title={groupDone ? 'Uncheck all in this group' : 'Mark all in this group as taken'}
+                  >
+                    {groupDone ? '↺ Clear' : '✓ All'}
+                  </button>
                 </div>
                 <div className="space-y-1">
                   {group.items.map(item => {
