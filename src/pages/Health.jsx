@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { healthPlan } from '../data/healthPlan';
 import { LAB_CATEGORIES } from '../constants';
 import { toLocalDateStr } from '../utils/dateUtils';
+import { appleSeries } from '../utils/appleHealth';
 import { getTrend } from '../data/labData';
 import TrendChart from '../components/TrendChart';
 
@@ -156,18 +157,7 @@ const TABS = [
   { id: 'other', label: 'Other' },
 ];
 
-// Pull a time series from dailyMetricsByDate for a dotted path like 'vitals.hrv'.
-function appleSeries(dailyMetricsByDate, path, days = 90) {
-  if (!dailyMetricsByDate) return [];
-  const keys = path.split('.');
-  const out = [];
-  for (const [date, doc] of Object.entries(dailyMetricsByDate)) {
-    let v = doc;
-    for (const k of keys) v = v?.[k];
-    if (v != null && typeof v === 'number') out.push({ date, value: v });
-  }
-  return out.sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
-}
+// appleSeries() moved to ../utils/appleHealth.js so Dashboard + Health share one source.
 
 export default function Health({ data, addWeight, addLabResult, dailyMetricsByDate, ...rest }) {
   const [view, setView] = useState('overview');

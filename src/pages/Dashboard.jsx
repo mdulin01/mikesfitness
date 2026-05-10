@@ -6,6 +6,7 @@ import { getLatestValue, getTrend } from '../data/labData';
 import { imagingHistory, colonoscopyTimeline } from '../data/imagingData';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
 import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
+import { appleSeries, appleSum, appleAvg, appleLatest, appleTrend, sparklinePath } from '../utils/appleHealth';
 
 const today = () => toLocalDateStr();
 const dayOfWeek = () => new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -499,6 +500,151 @@ export default function Dashboard({
                   {t.sub && <div className="text-[10px] text-slate-500 truncate" title={t.sub}>{t.sub}</div>}
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ══════ APPLE HEALTH TRENDS (7-day rolling, weekly targets, sparklines) ══════ */}
+      {(() => {
+        // Pull all the series we'll use; if nothing is synced yet, hide the whole panel.
+        const stepsSum = appleSum(dailyMetricsByDate, 'activity.steps', 7);
+        const stepsAvg = appleAvg(dailyMetricsByDate, 'activity.steps', 7);
+        const stepsSeries = appleSeries(dailyMetricsByDate, 'activity.steps', 14);
+        const exerciseSum = appleSum(dailyMetricsByDate, 'activity.exerciseMinutes', 7);
+        const exerciseSeries = appleSeries(dailyMetricsByDate, 'activity.exerciseMinutes', 14);
+        const hrvLatest = appleLatest(dailyMetricsByDate, 'vitals.hrv');
+        const hrvAvg = appleAvg(dailyMetricsByDate, 'vitals.hrv', 7);
+        const hrvSeries = appleSeries(dailyMetricsByDate, 'vitals.hrv', 30);
+        const hrvTrend = appleTrend(dailyMetricsByDate, 'vitals.hrv', 14);
+        const rhrLatest = appleLatest(dailyMetricsByDate, 'vitals.heartRateRest');
+        const rhrAvg = appleAvg(dailyMetricsByDate, 'vitals.heartRateRest', 7);
+        const rhrSeries = appleSeries(dailyMetricsByDate, 'vitals.heartRateRest', 30);
+        const rhrTrend = appleTrend(dailyMetricsByDate, 'vitals.heartRateRest', 14);
+        const vo2Latest = appleLatest(dailyMetricsByDate, 'fitness.vo2max');
+        const vo2Series = appleSeries(dailyMetricsByDate, 'fitness.vo2max', 90);
+        const vo2Trend = appleTrend(dailyMetricsByDate, 'fitness.vo2max', 60);
+
+        const anyData = stepsSum > 0 || exerciseSum > 0 || hrvLatest || rhrLatest || vo2Latest;
+        if (!anyData) return null;
+
+        // Compact trend tile. Each shows: label, latest/avg, sparkline, target/direction.
+        const Sparkline = ({ series, color }) => {
+          const { d, viewBox } = sparklinePath(series, 80, 20);
+          if (!d) return <div className="h-5" />;
+          return (
+            <svg viewBox={viewBox} className="w-full h-5" preserveAspectRatio="none">
+              <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          );
+        };
+
+        const arrowColor = (direction, isGood) => {
+          if (direction === 'flat') return 'text-slate-400';
+          // For RHR + steps direction matters opposite ways. Caller passes isGood.
+          return isGood ? 'text-emerald-400' : 'text-orange-400';
+        };
+
+        const tiles = [];
+
+        // STEPS — 7-day total, daily avg, vs 70k weekly (10k × 7) target
+        if (stepsSum > 0) {
+          const weeklyTarget = 70000;
+          const pct = Math.min(100, Math.round((stepsSum / weeklyTarget) * 100));
+          tiles.push(
+            <div key="steps" className="bg-slate-900/40 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Steps · 7d</div>
+                <div className="text-[10px] text-slate-500">{Math.round(stepsAvg.avg || 0).toLocaleString()}/day</div>
+              </div>
+              <div className="text-xl font-bold text-white">{Math.round(stepsSum).toLocaleString()}<span className="text-xs text-slate-500"> / 70k</span></div>
+              <div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+                <div className={`h-1.5 rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-orange-500'}`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-1.5"><Sparkline series={stepsSeries} color="#3b82f6" /></div>
+            </div>
+          );
+        }
+
+        // EXERCISE MINUTES — 7-day total vs 150-min target
+        if (exerciseSum > 0 || exerciseSeries.length > 0) {
+          const target = healthPlan?.exerciseTargets?.cardioMinutes || 150;
+          const pct = Math.min(100, Math.round((exerciseSum / target) * 100));
+          tiles.push(
+            <div key="exercise" className="bg-slate-900/40 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Exercise · 7d</div>
+                <div className={`text-[10px] font-medium ${pct >= 100 ? 'text-emerald-400' : pct >= 50 ? 'text-yellow-400' : 'text-orange-400'}`}>{pct}%</div>
+              </div>
+              <div className="text-xl font-bold text-white">{Math.round(exerciseSum)}<span className="text-xs text-slate-500"> / {target} min</span></div>
+              <div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+                <div className={`h-1.5 rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-orange-500'}`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-1.5"><Sparkline series={exerciseSeries} color="#22c55e" /></div>
+            </div>
+          );
+        }
+
+        // HRV — latest + 7-day avg + 30-day spark, trend up = good for HRV
+        if (hrvLatest) {
+          tiles.push(
+            <div key="hrv" className="bg-slate-900/40 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">HRV</div>
+                <div className={`text-[10px] font-medium ${arrowColor(hrvTrend.direction, hrvTrend.direction === 'up')}`}>
+                  {hrvTrend.arrow}{hrvTrend.pct != null ? ` ${Math.abs(hrvTrend.pct).toFixed(0)}%` : ''}
+                </div>
+              </div>
+              <div className="text-xl font-bold text-white">{Math.round(hrvLatest.value)}<span className="text-xs text-slate-500"> ms</span></div>
+              <div className="text-[10px] text-slate-500">7d avg {Math.round(hrvAvg.avg || 0)} ms</div>
+              <div className="mt-1.5"><Sparkline series={hrvSeries} color="#10b981" /></div>
+            </div>
+          );
+        }
+
+        // Resting HR — latest + 7-day avg + 30-day spark, trend down = good for RHR
+        if (rhrLatest) {
+          tiles.push(
+            <div key="rhr" className="bg-slate-900/40 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Resting HR</div>
+                <div className={`text-[10px] font-medium ${arrowColor(rhrTrend.direction, rhrTrend.direction === 'down')}`}>
+                  {rhrTrend.arrow}{rhrTrend.pct != null ? ` ${Math.abs(rhrTrend.pct).toFixed(0)}%` : ''}
+                </div>
+              </div>
+              <div className="text-xl font-bold text-white">{Math.round(rhrLatest.value)}<span className="text-xs text-slate-500"> bpm</span></div>
+              <div className="text-[10px] text-slate-500">7d avg {Math.round(rhrAvg.avg || 0)} bpm</div>
+              <div className="mt-1.5"><Sparkline series={rhrSeries} color="#f97316" /></div>
+            </div>
+          );
+        }
+
+        // VO2 max — latest + 90-day spark, trend up = good
+        if (vo2Latest) {
+          tiles.push(
+            <div key="vo2" className="bg-slate-900/40 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">VO₂ Max</div>
+                <div className={`text-[10px] font-medium ${arrowColor(vo2Trend.direction, vo2Trend.direction === 'up')}`}>
+                  {vo2Trend.arrow}{vo2Trend.pct != null ? ` ${Math.abs(vo2Trend.pct).toFixed(0)}%` : ''}
+                </div>
+              </div>
+              <div className="text-xl font-bold text-white">{vo2Latest.value.toFixed(1)}<span className="text-xs text-slate-500"> ml/kg/min</span></div>
+              <div className="text-[10px] text-slate-500">{vo2Latest.date}</div>
+              <div className="mt-1.5"><Sparkline series={vo2Series} color="#06b6d4" /></div>
+            </div>
+          );
+        }
+
+        if (tiles.length === 0) return null;
+        return (
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs text-slate-400 uppercase tracking-wide font-semibold">⌚ 7-Day Trends</h3>
+              <a href="/health" className="text-[10px] text-slate-500 hover:text-slate-300">Full charts →</a>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {tiles}
             </div>
           </div>
         );
