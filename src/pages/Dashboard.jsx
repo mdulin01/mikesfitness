@@ -541,15 +541,24 @@ export default function Dashboard({
       {(() => {
         const triPlan = sharedFitness?.trainingPlans?.[triEventId];
         const triEvent = sharedFitness?.events?.find(e => e.id === triEventId);
-        const currentTriWeek = triPlan?.find(w => w.startDate <= todayStr && w.endDate >= todayStr);
+        // "Current" week = the one whose date range includes today. If none (plan
+        // hasn't started yet, or we're between weeks), fall back to the next upcoming
+        // week so the widget still shows something useful.
+        const currentTriWeek = triPlan?.find(w => w.startDate <= todayStr && w.endDate >= todayStr)
+                            || triPlan?.find(w => w.startDate >= todayStr);
+        const isUpcoming = currentTriWeek && currentTriWeek.startDate > todayStr;
 
-        // Find all running workouts for this week from any non-tri shared event
+        // Find runs from any non-tri shared event whose week overlaps `currentTriWeek`.
+        // Matches by exact start date OR if their range contains the tri week's range.
         const weekRuns = [];
         for (const event of (sharedFitness?.events || [])) {
           if (event.id === triEventId) continue;
           const runPlan = sharedFitness?.trainingPlans?.[event.id];
           if (!runPlan) continue;
-          const matching = runPlan.find(w => currentTriWeek && (w.startDate === currentTriWeek.startDate || (w.startDate <= currentTriWeek.startDate && w.endDate >= currentTriWeek.endDate)));
+          // Try same-week match first; fall back to upcoming runs if tri is upcoming
+          let matching = currentTriWeek
+            ? runPlan.find(w => w.startDate === currentTriWeek.startDate || (w.startDate <= currentTriWeek.startDate && w.endDate >= currentTriWeek.endDate))
+            : runPlan.find(w => w.startDate <= todayStr && w.endDate >= todayStr) || runPlan.find(w => w.startDate >= todayStr);
           if (matching?.runs) {
             for (const r of matching.runs) {
               weekRuns.push({ ...r, _eventId: event.id, _weekId: matching.id, _eventName: event.name });
@@ -586,9 +595,10 @@ export default function Dashboard({
           <div className="bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-blue-700/40 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-blue-300/80 font-semibold">This Week in Training</div>
+                <div className="text-[10px] uppercase tracking-widest text-blue-300/80 font-semibold">{isUpcoming ? 'Next Up in Training' : 'This Week in Training'}</div>
                 <div className="text-base font-bold text-white">
                   {currentTriWeek ? `Week ${currentTriWeek.weekNumber} of ${triPlan.length} · ${currentTriWeek.phase}` : 'Run plan only'}
+                  {isUpcoming && <span className="text-xs text-blue-300/80 ml-2 font-normal">starts {currentTriWeek.startDate}</span>}
                   {triEvent && <span className="text-xs text-slate-400 ml-2 font-normal">→ {triEvent.name}</span>}
                 </div>
                 {currentTriWeek?.weekNotes && <div className="text-xs text-slate-400 mt-0.5">{currentTriWeek.weekNotes}</div>}
