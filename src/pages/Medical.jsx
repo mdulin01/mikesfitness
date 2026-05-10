@@ -26,8 +26,145 @@ function Section({ title, emoji, defaultOpen = true, children }) {
 
 const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+// Biology Snapshot — moved here from Dashboard. Quick top-of-page view of
+// score + body systems status + key lab values, with BP quick-log so this stays
+// the place to capture biology-side data.
+function BiologySnapshot({ data, save }) {
+  const [showBPInput, setShowBPInput] = useState(false);
+  const [bpSys, setBpSys] = useState('');
+  const [bpDia, setBpDia] = useState('');
+
+  // Latest lab values
+  const apoB = getLatestValue('ApoB');
+  const egfr = getLatestValue('eGFR');
+  const a1c = getLatestValue('HbA1c');
+  const cal = getLatestValue('Fecal Calprotectin');
+  const homo = getLatestValue('Homocysteine');
+
+  // Latest user-logged
+  const weights = data?.weightEntries || [];
+  const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+  const bpEntries = data?.bpEntries || [];
+  const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+  const vo2List = data?.vo2Entries || [];
+  const latestVO2 = vo2List.length > 0 ? [...vo2List].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+  const hrEntries = data?.hrEntries || [];
+  const latestHR = hrEntries.length > 0 ? [...hrEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+
+  // Biology score (out of 100, 7 systems × 14.3)
+  const partial = (cond) => cond ? 14.3 : 7;
+  const score = Math.round(
+    (apoB ? (apoB.value < 70 ? 14.3 : apoB.value < 90 ? 10 : apoB.value < 120 ? 5 : 0) : 7) +
+    (egfr ? (egfr.value >= 90 ? 14.3 : egfr.value >= 60 ? 10 : egfr.value >= 30 ? 5 : 0) : 7) +
+    (a1c ? (a1c.value < 5.7 ? 14.3 : a1c.value < 6.5 ? 10 : 5) : 7) +
+    (latestW ? (Math.abs(latestW.weight - 185) < 5 ? 14.3 : Math.abs(latestW.weight - 185) < 15 ? 10 : Math.abs(latestW.weight - 185) < 25 ? 5 : 0) : 7) +
+    (latestBP ? (latestBP.systolic < 120 ? 14.3 : latestBP.systolic < 130 ? 10 : latestBP.systolic < 140 ? 5 : 0) : 7) +
+    (latestW?.bodyFat ? (latestW.bodyFat < 18 ? 14.3 : latestW.bodyFat < 22 ? 10 : latestW.bodyFat < 28 ? 5 : 0) : 7) +
+    (cal ? (cal.value < 50 ? 14.3 : cal.value < 200 ? 10 : 5) : 7)
+  );
+  void partial; // helper kept for future system additions
+
+  // Status helpers — return green/yellow/red string
+  const statusOf = (v, goodAt, okAt, dir = 'lower') => {
+    if (v == null) return 'gray';
+    if (dir === 'higher') return v >= goodAt ? 'green' : v >= okAt ? 'yellow' : 'red';
+    return v < goodAt ? 'green' : v < okAt ? 'yellow' : 'red';
+  };
+
+  const systems = [
+    { key: 'cardio', label: 'Cardio', emoji: '❤️', status: statusOf(apoB?.value, 90, 120) },
+    { key: 'kidney', label: 'Kidney', emoji: '🫘', status: statusOf(egfr?.value, 60, 30, 'higher') },
+    { key: 'metabolic', label: 'Metabolic', emoji: '🔬', status: statusOf(a1c?.value, 5.7, 6.5) },
+    { key: 'gut', label: 'Gut', emoji: '🦠', status: cal ? statusOf(cal.value, 50, 200) : 'yellow' },
+    { key: 'bp', label: 'BP', emoji: '💓', status: latestBP ? statusOf(latestBP.systolic, 130, 140) : 'gray' },
+    { key: 'composition', label: 'Body Comp', emoji: '⚖️', status: latestW?.bodyFat ? statusOf(latestW.bodyFat, 22, 28) : 'gray' },
+    { key: 'fitness', label: 'Fitness', emoji: '💪', status: latestVO2?.vo2max ? statusOf(latestVO2.vo2max, 35, 25, 'higher') : 'gray' },
+  ];
+
+  const STATUS_BG = {
+    green: 'bg-green-900/20 border-green-800',
+    yellow: 'bg-yellow-900/20 border-yellow-800',
+    red: 'bg-red-900/20 border-red-800',
+    gray: 'bg-slate-800 border-slate-700',
+  };
+  const STATUS_DOT = { green: 'bg-green-500', yellow: 'bg-yellow-500', red: 'bg-red-500', gray: 'bg-slate-600' };
+  const scoreColor = score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
+  const scoreBg = score >= 80 ? 'from-green-900/40 to-emerald-900/40 border-green-800/50' : score >= 60 ? 'from-yellow-900/40 to-orange-900/40 border-yellow-800/50' : 'from-red-900/40 to-orange-900/40 border-red-800/50';
+
+  const keyNumbers = [
+    { label: 'Weight', value: latestW ? latestW.weight : '—', unit: 'lbs' },
+    { label: 'BF', value: latestW?.bodyFat ? latestW.bodyFat : '—', unit: '%' },
+    { label: 'ApoB', value: apoB ? apoB.value : '—', unit: '' },
+    { label: 'eGFR', value: egfr ? egfr.value : '—', unit: '' },
+    { label: 'A1c', value: a1c ? a1c.value : '—', unit: '%' },
+    { label: 'Hcy', value: homo ? homo.value : '—', unit: '' },
+    { label: 'VO2', value: latestVO2?.vo2max || '—', unit: '' },
+    { label: 'BP', value: latestBP ? `${latestBP.systolic}/${latestBP.diastolic}` : '—', unit: '' },
+    { label: 'RHR', value: latestHR?.bpm || '—', unit: '' },
+  ];
+
+  return (
+    <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg} mb-4`}>
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Biology Snapshot</div>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className={`text-3xl font-bold ${scoreColor}`}>{score}</span>
+            <span className="text-slate-500 text-xs">/ 100 biology score</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Body systems */}
+      <div className="grid grid-cols-7 gap-1.5 mb-3">
+        {systems.map(sys => (
+          <div key={sys.key} className={`${STATUS_BG[sys.status]} border rounded-lg p-1.5 text-center`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${STATUS_DOT[sys.status]}`} />
+              <span className="text-xs">{sys.emoji}</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{sys.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Key numbers row */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs">
+        {keyNumbers.map(n => (
+          <span key={n.label} className="text-slate-400">
+            <span className="text-slate-500">{n.label}</span>{' '}
+            <span className="text-white font-semibold">{n.value}</span>
+            {n.unit && <span className="text-slate-600 ml-0.5">{n.unit}</span>}
+          </span>
+        ))}
+      </div>
+
+      {/* Quick BP log */}
+      <div className="mt-3">
+        <button onClick={() => setShowBPInput(v => !v)} className="text-xs text-blue-400 hover:text-blue-300">
+          + Log BP
+        </button>
+        {showBPInput && (
+          <div className="flex gap-2 mt-2 items-center">
+            <input type="number" placeholder="Sys" value={bpSys} onChange={e => setBpSys(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
+            <span className="text-slate-500">/</span>
+            <input type="number" placeholder="Dia" value={bpDia} onChange={e => setBpDia(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
+            <button onClick={() => {
+              if (bpSys && bpDia) {
+                const entries = [...(data?.bpEntries || []), { id: Date.now(), date: new Date().toISOString().slice(0, 10), systolic: parseInt(bpSys), diastolic: parseInt(bpDia), value: parseInt(bpSys) }];
+                save({ bpEntries: entries });
+                setBpSys(''); setBpDia(''); setShowBPInput(false);
+              }
+            }} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Save</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Tab 1: Problem List
-function ProblemsTab() {
+function ProblemsTab({ data, save }) {
   const latestEgfr = getLatestValue('eGFR');
   const latestCreat = getLatestValue('Creatinine');
   const latestPlatelets = getLatestValue('Platelets');
@@ -87,6 +224,7 @@ function ProblemsTab() {
 
   return (
     <div className="space-y-3">
+      <BiologySnapshot data={data} save={save} />
       {problems.map((p, i) => (
         <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div className="flex items-start justify-between mb-2">
@@ -924,7 +1062,7 @@ export default function Medical({ data, save, addLabResult, labPanels, addLabPan
   const renderTab = () => {
     switch (activeTab) {
       case 'visit-prep': return <VisitPrepTab />;
-      case 'problems': return <ProblemsTab />;
+      case 'problems': return <ProblemsTab data={data} save={save} />;
       case 'medications': return <MedicationsTab />;
       case 'labs': return <LabsTab labPanels={labPanels} addLabPanel={addLabPanel} updateLabPanel={updateLabPanel} deleteLabPanel={deleteLabPanel} />;
       case 'imaging': return <ImagingTab />;

@@ -219,8 +219,7 @@ export default function Dashboard({
   const fastingSettings = data?.fastingSettings || { targetFastHours: 16, feedingWindowHours: 8, typicalFastStart: '20:00', typicalFeedingStart: '12:00' };
   const todayFasting = data?.fastingLog?.[todayStr] || {};
 
-  // Expanded system tooltip
-  const [expandedSystem, setExpandedSystem] = useState(null);
+  // expandedSystem state was for the old biology systems row — moved to Medical.
 
   // Exercise log
   const [showExerciseLog, setShowExerciseLog] = useState(false);
@@ -230,10 +229,7 @@ export default function Dashboard({
   const [showSleepLog, setShowSleepLog] = useState(false);
   const todaySleep = data?.sleepLog?.[todayStr] || {};
 
-  // BP quick log
-  const [showBPInput, setShowBPInput] = useState(false);
-  const [bpSys, setBpSys] = useState('');
-  const [bpDia, setBpDia] = useState('');
+  // BP quick log moved to Medical — biology metric, doesn't belong on the behavior dashboard.
   const [sleepForm, setSleepForm] = useState({ bedtime: todaySleep.bedtime || '22:00', wakeTime: todaySleep.wakeTime || '06:00', quality: todaySleep.quality || 3 });
 
   // Water tracker removed — variables deleted. Old data persists in Firestore but is unused.
@@ -358,41 +354,9 @@ export default function Dashboard({
     return { overall, behavior, biology };
   }, [dailyChecks, todayMeals, medChecks, totalMedChecked, totalMedItems, todayFasting, data?.weightEntries, data?.bpEntries]);
 
-  // Systems for display
-  const systems = useMemo(() => [
-    { key: 'cardio', label: 'Cardio', emoji: '❤️' },
-    { key: 'kidney', label: 'Kidney', emoji: '🫘' },
-    { key: 'metabolic', label: 'Metabolic', emoji: '🔬' },
-    { key: 'brain', label: 'Brain', emoji: '🧠' },
-    { key: 'muscle', label: 'Muscle', emoji: '💪' },
-    { key: 'gut', label: 'Gut', emoji: '🦠' },
-    { key: 'sleep', label: 'Sleep', emoji: '😴' },
-  ].map(s => ({ ...s, ...systemStatus(s.key, data, dailyChecks, medChecks, dailyMetricsByDate) })),
-  [data, dailyChecks, medChecks]);
+  // Body systems display (Cardio, Kidney, etc.) moved to Medical Overview — they're biology indicators, not actionable behavior.
 
-  // Key numbers
-  const keyNumbers = useMemo(() => {
-    const weights = data?.weightEntries || [];
-    const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const bpEntries = data?.bpEntries || [];
-    const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const vo2 = data?.vo2Entries || [];
-    const latestVO2 = vo2.length > 0 ? [...vo2].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const hrEntries = data?.hrEntries || [];
-    const latestHR = hrEntries.length > 0 ? [...hrEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const apoB = getLatestValue('ApoB');
-    const egfr = getLatestValue('eGFR');
-
-    return [
-      { label: 'Weight', value: latestW ? `${latestW.weight}` : '—', unit: 'lbs' },
-      { label: 'BF', value: latestW?.bodyFat ? `${latestW.bodyFat}` : '—', unit: '%' },
-      { label: 'ApoB', value: apoB ? `${apoB.value}` : '—', unit: '' },
-      { label: 'eGFR', value: egfr ? `${egfr.value}` : '—', unit: '' },
-      { label: 'VO2', value: latestVO2 ? `${latestVO2.vo2max}` : '—', unit: '' },
-      { label: 'BP', value: latestBP ? `${latestBP.systolic}/${latestBP.diastolic}` : '—', unit: '' },
-      { label: 'RHR', value: latestHR ? `${latestHR.hr}` : '—', unit: '' },
-    ];
-  }, [data?.weightEntries, data?.bpEntries, data?.vo2Entries, data?.hrEntries]);
+  // keyNumbers (Weight/BF/ApoB/eGFR/VO2/BP/RHR) moved to Medical's Biology Snapshot section.
 
   // Fasting computed
   const fastingStatus = useMemo(() => {
@@ -425,108 +389,59 @@ export default function Dashboard({
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 pb-24 md:pb-6">
 
-      {/* ══════ HEALTH OS HEADER ══════ */}
-      <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg(scores.overall)}`}>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mike's Health OS</div>
-              {lastDailyMetricsSync && (() => {
-                const minsAgo = Math.round((Date.now() - lastDailyMetricsSync) / 60000);
-                const ago = minsAgo < 60 ? `${minsAgo}m` : minsAgo < 1440 ? `${Math.round(minsAgo/60)}h` : `${Math.round(minsAgo/1440)}d`;
-                const fresh = minsAgo < 90;
-                return (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${fresh ? 'bg-emerald-900/40 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
-                    title={`Last Apple Health sync: ${new Date(lastDailyMetricsSync).toLocaleString()}`}>
-                    ⌚ {ago} ago
-                  </span>
-                );
-              })()}
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className={`text-4xl font-bold ${scoreColor(scores.overall)}`}>{scores.overall}</span>
-              <span className="text-slate-500 text-sm">/ 100</span>
-            </div>
+      {/* ══════ TODAY'S BEHAVIOR ══════
+           Dashboard is behavior + activity focused. Biology score, body systems,
+           and lab numbers live on the Medical tab now. */}
+      <div className={`rounded-xl border p-4 bg-gradient-to-br ${scoreBg(scores.behavior)}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Today's Behavior</div>
+            {lastDailyMetricsSync && (() => {
+              const minsAgo = Math.round((Date.now() - lastDailyMetricsSync) / 60000);
+              const ago = minsAgo < 60 ? `${minsAgo}m` : minsAgo < 1440 ? `${Math.round(minsAgo/60)}h` : `${Math.round(minsAgo/1440)}d`;
+              const fresh = minsAgo < 90;
+              return (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${fresh ? 'bg-emerald-900/40 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                  title={`Last Apple Health sync: ${new Date(lastDailyMetricsSync).toLocaleString()}`}>
+                  ⌚ {ago} ago
+                </span>
+              );
+            })()}
           </div>
-          <div className="text-right space-y-1">
-            <div className="flex items-center gap-2 justify-end">
-              <span className="text-xs text-slate-400">Behavior</span>
-              <span className={`text-lg font-bold ${scoreColor(scores.behavior)}`}>{scores.behavior}</span>
-            </div>
-            <div className="flex items-center gap-2 justify-end">
-              <span className="text-xs text-slate-400">Biology</span>
-              <span className={`text-lg font-bold ${scoreColor(scores.biology)}`}>{scores.biology}</span>
-            </div>
-          </div>
+          <a href="/medical" className="text-[10px] text-slate-500 hover:text-slate-300">Biology snapshot →</a>
+        </div>
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className={`text-4xl font-bold ${scoreColor(scores.behavior)}`}>{scores.behavior}</span>
+          <span className="text-slate-500 text-sm">/ 100 behavior score</span>
         </div>
 
-        {/* Systems row */}
-        <div className="grid grid-cols-7 gap-1.5">
-          {systems.map(sys => {
-            const c = STATUS_COLORS[sys.status];
-            const isExpanded = expandedSystem === sys.key;
-            return (
-              <div key={sys.key}
-                onClick={() => setExpandedSystem(isExpanded ? null : sys.key)}
-                className={`${c.bg} border ${c.border} rounded-lg p-1.5 text-center cursor-pointer transition-all ${isExpanded ? 'ring-1 ring-white/30' : ''}`}>
-                <div className="flex items-center justify-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${c.dot}`} />
-                  <span className="text-xs font-medium text-slate-300">{sys.emoji}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{sys.label}</div>
-              </div>
-            );
-          })}
-        </div>
-        {/* System detail tooltip */}
-        {expandedSystem && (() => {
-          const sys = systems.find(s => s.key === expandedSystem);
-          if (!sys?.detail) return null;
-          const c = STATUS_COLORS[sys.status];
+        {/* 5 behavior pillars */}
+        {(() => {
+          const pillars = [
+            { label: 'Exercise', value: dailyChecks['exercise'] ? 20 : 0, max: 20 },
+            { label: 'Nutrition', value: Math.min(20, (todayMeals.filter(m => m.tags?.some(t => /protein|fiber/i.test(t))).length * 5) + ((medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0))), max: 20 },
+            { label: 'Sleep', value: (() => { const s = data?.sleepLog?.[todayStr] || {}; return s.hours ? (s.hours >= 7 ? 20 : s.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); })(), max: 20 },
+            { label: 'Meds', value: totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0, max: 20 },
+            { label: 'Fasting', value: (() => { const f = todayFasting; if (!f.lastMealYesterday || !f.firstMealToday) return 0; const [lh, lm] = f.lastMealYesterday.split(':').map(Number); const [fh, fm] = f.firstMealToday.split(':').map(Number); const hrs = ((24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm)) / 60; return hrs >= fastingSettings.targetFastHours ? 20 : hrs >= 12 ? 10 : 0; })(), max: 20 },
+          ];
           return (
-            <div className={`${c.bg} border ${c.border} rounded-lg px-3 py-2 mt-1.5`}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-white">{sys.emoji} {sys.label}</span>
-                <button onClick={(e) => { e.stopPropagation(); setExpandedSystem(null); }} className="text-slate-500 text-xs hover:text-slate-300">✕</button>
-              </div>
-              {sys.detail.split('\n').map((line, i) => (
-                <div key={i} className="text-[11px] text-slate-300 leading-relaxed">{line}</div>
-              ))}
+            <div className="grid grid-cols-5 gap-1.5">
+              {pillars.map(p => {
+                const pct = (p.value / p.max) * 100;
+                const color = pct >= 90 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-500' : pct > 0 ? 'bg-orange-500' : 'bg-slate-600';
+                return (
+                  <div key={p.label} className="text-center">
+                    <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden mb-1">
+                      <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="text-[10px] text-slate-400">{p.label}</div>
+                    <div className={`text-xs font-semibold ${pct >= 90 ? 'text-emerald-400' : pct >= 50 ? 'text-yellow-400' : pct > 0 ? 'text-orange-400' : 'text-slate-500'}`}>{p.value}</div>
+                  </div>
+                );
+              })}
             </div>
           );
         })()}
-
-        {/* Key Numbers */}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs">
-          {keyNumbers.map(n => (
-            <span key={n.label} className="text-slate-400">
-              <span className="text-slate-500">{n.label}</span>{' '}
-              <span className="text-white font-semibold">{n.value}</span>
-              {n.unit && <span className="text-slate-600 ml-0.5">{n.unit}</span>}
-            </span>
-          ))}
-        </div>
-
-        {/* Quick BP Log */}
-        <div className="mt-3">
-          <button onClick={() => setShowBPInput(!showBPInput)} className="text-xs text-blue-400 hover:text-blue-300">
-            + Log BP
-          </button>
-          {showBPInput && (
-            <div className="flex gap-2 mt-2 items-center">
-              <input type="number" placeholder="Sys" value={bpSys} onChange={e => setBpSys(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
-              <span className="text-slate-500">/</span>
-              <input type="number" placeholder="Dia" value={bpDia} onChange={e => setBpDia(e.target.value)} className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm" />
-              <button onClick={() => {
-                if(bpSys && bpDia) {
-                  const entries = [...(data?.bpEntries || []), { id: Date.now(), date: toLocalDateStr(), systolic: parseInt(bpSys), diastolic: parseInt(bpDia), value: parseInt(bpSys) }];
-                  save({ bpEntries: entries });
-                  setBpSys(''); setBpDia(''); setShowBPInput(false);
-                }
-              }} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Save</button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ══════ TODAY'S APPLE HEALTH ACTIVITY (auto-hides metrics that aren't synced yet) ══════ */}
