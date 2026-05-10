@@ -417,8 +417,17 @@ export default function Dashboard({
 
         {/* 5 behavior pillars */}
         {(() => {
+          // Exercise: auto-credit from Apple Health (any of: 30+ min exercise minutes,
+          // a swim, or 2+ miles walked/ran) — falls back to manual checkbox.
+          const todayActivity = dailyMetricsByDate?.[todayStr]?.activity || {};
+          const exerciseMin = todayActivity.exerciseMinutes || 0;
+          const swam = (todayActivity.swimDistanceMeters || 0) > 0;
+          const walked = (todayActivity.distanceMiles || 0) >= 2;
+          const autoExercise = exerciseMin >= 30 || swam || walked;
+          const partialExercise = exerciseMin >= 15;
+          const exerciseValue = (autoExercise || dailyChecks['exercise']) ? 20 : (partialExercise ? 10 : 0);
           const pillars = [
-            { label: 'Exercise', value: dailyChecks['exercise'] ? 20 : 0, max: 20 },
+            { label: 'Exercise', value: exerciseValue, max: 20 },
             { label: 'Nutrition', value: Math.min(20, (todayMeals.filter(m => m.tags?.some(t => /protein|fiber/i.test(t))).length * 5) + ((medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0))), max: 20 },
             { label: 'Sleep', value: (() => { const s = data?.sleepLog?.[todayStr] || {}; return s.hours ? (s.hours >= 7 ? 20 : s.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); })(), max: 20 },
             { label: 'Meds', value: totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0, max: 20 },
@@ -455,13 +464,14 @@ export default function Dashboard({
         // Compose tiles only when we actually have data, so the panel stays clean
         // on days without much sync (e.g., before the watch is worn).
         const tiles = [];
+        // Curated tile set — only metrics Mike actually wants on the dashboard.
+        // Stand hours, floors climbed, daylight minutes, pool temp deliberately omitted.
+        // env left available for the future but not rendered.
+        void env;
         if (a.steps != null) tiles.push({ label: 'Steps', value: Math.round(a.steps).toLocaleString(), sub: a.distanceMiles ? `${a.distanceMiles.toFixed(2)} mi` : null });
-        if (a.activeEnergyKcal != null) tiles.push({ label: 'Active Cal', value: Math.round(a.activeEnergyKcal), sub: 'kcal' });
         if (a.exerciseMinutes != null) tiles.push({ label: 'Exercise', value: Math.round(a.exerciseMinutes), sub: 'min' });
-        if (a.standHours != null) tiles.push({ label: 'Stand', value: Math.round(a.standHours), sub: 'hours' });
-        if (a.flightsClimbed != null) tiles.push({ label: 'Floors', value: Math.round(a.flightsClimbed), sub: 'climbed' });
+        if (a.activeEnergyKcal != null) tiles.push({ label: 'Active Cal', value: Math.round(a.activeEnergyKcal), sub: 'kcal' });
         if (a.swimDistanceMeters != null) tiles.push({ label: 'Swim', value: Math.round(a.swimDistanceMeters).toLocaleString(), sub: `yds${a.swimStrokes ? ` · ${Math.round(a.swimStrokes)} strokes` : ''}` });
-        if (a.daylightMinutes != null) tiles.push({ label: 'Daylight', value: Math.round(a.daylightMinutes), sub: 'min' });
         if (sleep?.hoursTotal) {
           const stages = sleep.stages || {};
           const stageBits = [stages.deep && `D ${stages.deep.toFixed(1)}`, stages.rem && `R ${stages.rem.toFixed(1)}`, stages.core && `C ${stages.core.toFixed(1)}`].filter(Boolean).join(' · ');
@@ -472,7 +482,6 @@ export default function Dashboard({
         if (v.weightLbs != null) tiles.push({ label: 'Weight', value: v.weightLbs.toFixed(1), sub: 'lbs' });
         if (v.bodyFatPct != null) tiles.push({ label: 'Body Fat', value: `${(v.bodyFatPct * 100).toFixed(1)}%`, sub: '' });
         if (v.spo2 != null) tiles.push({ label: 'SpO₂', value: `${(v.spo2 * 100).toFixed(0)}%`, sub: '' });
-        if (env.underwaterTempF != null) tiles.push({ label: 'Pool Temp', value: env.underwaterTempF.toFixed(1), sub: '°F' });
         if (tiles.length === 0) return null;
         return (
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-3">

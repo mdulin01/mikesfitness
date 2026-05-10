@@ -397,7 +397,12 @@ export const useHealthData = (user) => {
   const addMeal = useCallback((dateStr, meal) => {
     const log = { ...(data?.mealLog || {}) };
     if (!log[dateStr]) log[dateStr] = [];
-    log[dateStr] = [...log[dateStr], { ...meal, id: Date.now() }];
+    // Use Date.now() + random suffix to avoid ID collisions when the user
+    // taps Quick-Add rapidly (Date.now() alone returns same ms inside a click).
+    // Without this, deleting one tapped-twice oatmeal removed (or did nothing
+    // to) the other because they shared an ID.
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    log[dateStr] = [...log[dateStr], { ...meal, id }];
     setData(d => ({ ...d, mealLog: log }));
     save({ mealLog: log });
   }, [data, save]);

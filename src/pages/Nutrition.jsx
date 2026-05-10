@@ -375,10 +375,19 @@ export default function Nutrition({ data, addMeal, deleteMeal, addShoppingItem, 
                       <div key={meal.id} className="flex items-start gap-3 p-3 bg-slate-700/50 rounded-lg">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-white">{meal.description}</div>
-                          <div className="text-xs text-slate-400">{meal.time}</div>
+                          <div className="text-xs text-slate-400">{meal.time}{meal.calories ? ` · ${meal.calories} cal` : ''}</div>
                           {meal.notes && <div className="text-xs text-slate-500 mt-1">{meal.notes}</div>}
                         </div>
-                        <button onClick={() => deleteMeal(selectedDate, meal.id)} className="text-slate-600 hover:text-red-400 text-xs p-1">×</button>
+                        <button
+                          onClick={() => {
+                            deleteMeal(selectedDate, meal.id);
+                            showToast?.(`Removed ${meal.description}`, 'success');
+                          }}
+                          className="flex items-center gap-1 px-3 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-700/40 hover:border-red-500 text-red-300 hover:text-white rounded-lg text-xs font-medium transition"
+                          aria-label={`Delete ${meal.description}`}
+                        >
+                          🗑 Delete
+                        </button>
                       </div>
                     ))}
                   </div>
