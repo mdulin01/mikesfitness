@@ -891,6 +891,24 @@ function VisitPrepTab() {
   // === QUESTIONS FOR THE DOCTOR ===
   const questions = [
     {
+      topic: 'Aspirin Safety with CKD + Crohn\'s',
+      emoji: '🚨',
+      priority: 'high',
+      question: 'Starting aspirin 81 mg for CRC chemoprevention, but aspirin is an NSAID. With eGFR 56–71 (kidney concern) and Crohn\'s history (GI bleeding risk), is this safe? Do benefits outweigh risks in my case?',
+    },
+    {
+      topic: 'Metformin with Kidney Numbers',
+      emoji: '🚨',
+      priority: 'high',
+      question: 'Starting metformin 500 mg daily for longevity. Labcorp eGFR was 56 (Jun 2025), NIH was 71 (Sep 2025). Metformin is cautioned at eGFR <60. Safe to start? At what eGFR should I stop?',
+    },
+    {
+      topic: 'Rapamycin + Crohn\'s',
+      emoji: '🚨',
+      priority: 'high',
+      question: 'Starting rapamycin 5 mg weekly. As an immunosuppressant, any concerns with Crohn\'s disease (even in remission)? Could it affect flare risk or infection susceptibility? Has GI weighed in?',
+    },
+    {
       topic: 'PSA Increase',
       emoji: '⚠️',
       priority: 'high',
@@ -912,19 +930,25 @@ function VisitPrepTab() {
       topic: 'Lipid Management',
       emoji: '❤️',
       priority: 'medium',
-      question: 'ApoB is still 111 (goal <70) and triglycerides spiked to 236 in June 2025. On rosuvastatin + ezetimibe. Should we increase the statin dose or add icosapent ethyl (Vascepa)?',
+      question: 'ApoB is still 111 (goal <70) and triglycerides spiked to 236 in June 2025. On rosuvastatin 5 mg (capped due to rapamycin) + ezetimibe. Is the statin dose sufficient or should we consider alternatives?',
     },
     {
       topic: 'Homocysteine Follow-up',
       emoji: '📊',
       priority: 'medium',
-      question: 'Homocysteine was 21.4 in June 2025 (goal <10). Have been taking B-vitamins. Is there a better methylfolate/B12 protocol if levels remain high?',
+      question: 'Homocysteine was 21.4 in June 2025 (goal <10). Switching to methyl B complex (methylfolate + methylcobalamin). Any additional protocol if levels remain high?',
     },
     {
       topic: 'Testosterone / Enclomiphene',
       emoji: '💊',
       priority: 'medium',
       question: 'Testosterone 483 (was 619 in 2023). Currently on enclomiphene from H&H — should this be monitored through you as well? Any concerns with the current protocol?',
+    },
+    {
+      topic: 'Tirzepatide Monitoring',
+      emoji: '💉',
+      priority: 'medium',
+      question: 'Starting tirzepatide weekly injection. What labs or vitals should we monitor? Any concerns with the rest of the regimen (metformin overlap, GI effects with Crohn\'s)?',
     },
     {
       topic: 'Platelet Monitoring',

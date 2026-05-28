@@ -31,6 +31,7 @@ export const healthPlan = {
       items: [
         { name: 'Vitamin D', notes: 'Fat-soluble, needs lipid for absorption' },
         { name: 'Visbiome (1 sachet)', notes: 'Probiotic, gut health' },
+        { name: 'Creatine 5 g', notes: 'Muscle/brain, sarcopenia prevention' },
       ],
     },
     {
@@ -54,7 +55,7 @@ export const healthPlan = {
       time: 'dinner', label: '6:30 PM — Dinner', emoji: '🌆',
       notes: 'Second doses of fish oil and CoQ10.',
       items: [
-        { name: 'Vitamin B complex', notes: 'Homocysteine; metformin depletes B12' },
+        { name: 'Methyl B complex', notes: 'Homocysteine; methylfolate + methylcobalamin; metformin depletes B12' },
         { name: 'Fish oil 1–2 g EPA+DHA', notes: 'Heart/triglycerides' },
         { name: 'CoQ10 (ubiquinol) 200 mg', notes: 'Statin support' },
       ],
@@ -66,6 +67,7 @@ export const healthPlan = {
         { name: 'Rosuvastatin 5 mg', notes: 'Cholesterol; max 5 mg with rapamycin', rx: true },
         { name: 'Ezetimibe 10 mg', notes: 'Cholesterol', rx: true },
         { name: 'Tadalafil 5 mg', notes: 'Vascular; ≥12 hr from rapamycin', rx: true },
+        { name: 'Magnesium glycinate', notes: 'Sleep, heart rhythm, muscle recovery' },
       ],
     },
     {
@@ -98,7 +100,9 @@ export const healthPlan = {
     { name: "Pterostilbene 50 mg", why: "Longevity", timing: "lunch", withFood: true, awayFromFiber: true },
     { name: "Fish oil 1–2 g EPA+DHA (2x/day)", why: "Heart, triglycerides", timing: "lunch + dinner", withFood: true, awayFromFiber: true },
     { name: "CoQ10 (ubiquinol) 200 mg (2x/day)", why: "Statin support", timing: "lunch + dinner", withFood: true, awayFromFiber: true },
-    { name: "Vitamin B complex", why: "Homocysteine; metformin depletes B12", timing: "dinner", withFood: true, awayFromFiber: true },
+    { name: "Methyl B complex", why: "Homocysteine; methylfolate + methylcobalamin; metformin depletes B12", timing: "dinner", withFood: true, awayFromFiber: true },
+    { name: "Creatine 5 g", why: "Muscle, brain, sarcopenia prevention", timing: "breakfast", withFood: true, awayFromFiber: false },
+    { name: "Magnesium glycinate", why: "Sleep, heart rhythm, muscle recovery", timing: "bedtime", withFood: false, awayFromFiber: false },
   ],
 
   labSchedule: {
