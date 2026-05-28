@@ -44,7 +44,6 @@ export const healthPlan = {
       time: 'lunch', label: '12:30 PM — Lunch', emoji: '🍽️',
       notes: 'All lipophilic agents taken with dietary fat.',
       items: [
-        { name: 'Metformin 500 mg', notes: 'Metabolic/longevity', rx: true },
         { name: 'Apigenin 50 mg', notes: 'Longevity' },
         { name: 'Pterostilbene 50 mg', notes: 'Longevity' },
         { name: 'Fish oil 1–2 g EPA+DHA', notes: 'Heart/triglycerides' },
@@ -55,7 +54,6 @@ export const healthPlan = {
       time: 'dinner', label: '6:30 PM — Dinner', emoji: '🌆',
       notes: 'Second doses of fish oil and CoQ10.',
       items: [
-        { name: 'Metformin 500 mg', notes: 'Metabolic/longevity', rx: true },
         { name: 'Vitamin B complex', notes: 'Homocysteine; metformin depletes B12' },
         { name: 'Fish oil 1–2 g EPA+DHA', notes: 'Heart/triglycerides' },
         { name: 'CoQ10 (ubiquinol) 200 mg', notes: 'Statin support' },
@@ -82,7 +80,7 @@ export const healthPlan = {
 
   // Flat arrays kept for backward compat (Medical page, health score, etc.)
   medications: [
-    { name: "Metformin 500 mg (3x/day)", why: "Metabolic health, longevity", category: "metabolic", timing: "morning/lunch/dinner", withFood: true, awayFromFiber: true },
+    { name: "Metformin 500 mg", why: "Metabolic health, longevity", category: "metabolic", timing: "morning", withFood: false, awayFromFiber: true },
     { name: "Rosuvastatin 5 mg", why: "LDL reduction, plaque prevention", category: "cardiovascular", timing: "bedtime", withFood: false, awayFromFiber: false },
     { name: "Ezetimibe 10 mg", why: "Additional LDL lowering", category: "cardiovascular", timing: "bedtime", withFood: false, awayFromFiber: false },
     { name: "Enclomiphene", why: "Maintain testosterone, muscle mass", category: "hormonal", timing: "morning", withFood: false, awayFromFiber: true },
