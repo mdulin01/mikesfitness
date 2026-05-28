@@ -288,7 +288,7 @@ export default function Dashboard({
     const exercisePts = (workoutDone ? 12 : 0) + (moveDone ? 4 : 0) + (mobilityDone ? 4 : 0); // 20 max
 
     const mealPts = Math.min(10, todayMeals.length * 5);
-    const fiberPts = (medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0);
+    const fiberPts = (medChecks['Fiber supplement'] ? 10 : 0);
     const nutritionPts = mealPts + fiberPts; // 20 max
 
     const sleepEntry = data?.sleepLog?.[todayStr] || {};
@@ -429,7 +429,7 @@ export default function Dashboard({
           const exerciseValue = (autoExercise || dailyChecks['exercise']) ? 20 : (partialExercise ? 10 : 0);
           const pillars = [
             { label: 'Exercise', value: exerciseValue, max: 20 },
-            { label: 'Nutrition', value: Math.min(20, (todayMeals.filter(m => m.tags?.some(t => /protein|fiber/i.test(t))).length * 5) + ((medChecks['Benefiber'] ? 5 : 0) + (medChecks['Psyllium'] ? 5 : 0))), max: 20 },
+            { label: 'Nutrition', value: Math.min(20, (todayMeals.filter(m => m.tags?.some(t => /protein|fiber/i.test(t))).length * 5) + (medChecks['Fiber supplement'] ? 10 : 0)), max: 20 },
             { label: 'Sleep', value: (() => { const s = data?.sleepLog?.[todayStr] || {}; return s.hours ? (s.hours >= 7 ? 20 : s.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); })(), max: 20 },
             { label: 'Meds', value: totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0, max: 20 },
             { label: 'Fasting', value: (() => { const f = todayFasting; if (!f.lastMealYesterday || !f.firstMealToday) return 0; const [lh, lm] = f.lastMealYesterday.split(':').map(Number); const [fh, fm] = f.firstMealToday.split(':').map(Number); const hrs = ((24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm)) / 60; return hrs >= fastingSettings.targetFastHours ? 20 : hrs >= 12 ? 10 : 0; })(), max: 20 },
