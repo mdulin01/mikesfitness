@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
-import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
+import { MEAL_TYPES } from '../constants';
 import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
 import { appleSeries, appleSum, appleAvg, appleLatest, appleTrend, sparklinePath } from '../utils/appleHealth';
 
@@ -108,11 +108,6 @@ export default function Dashboard({
     return count;
   }, [data, dailyChecks]);
 
-  // Appointments
-  const upcomingAppts = (data?.appointments || [])
-    .filter(a => a.date && a.date >= todayStr && a.status === 'scheduled')
-    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
-  const needsScheduling = (data?.appointments || []).filter(a => a.status === 'needs-scheduling');
 
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const daysUntil = (d) => Math.ceil((new Date(d) - new Date(todayStr)) / 86400000);
@@ -896,33 +891,6 @@ export default function Dashboard({
         </div>
       </Section>
 
-      {/* ══════ UPCOMING EVENTS ══════ */}
-      {(upcomingAppts.length > 0 || needsScheduling.length > 0) && (
-        <Section title="Upcoming" emoji="📋" defaultOpen={true}>
-          <div className="flex justify-end -mt-2 mb-2">
-            <button onClick={() => navigate('/life')} className="text-sm text-blue-400 hover:underline">View all →</button>
-          </div>
-          <div className="space-y-2">
-            {upcomingAppts.map(appt => {
-              const type = ALL_EVENT_TYPES.find(t => t.id === appt.type) || ALL_EVENT_TYPES[ALL_EVENT_TYPES.length - 1];
-              return (
-                <div key={appt.id} className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg">
-                  <span className="text-xl">{type.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-200">{appt.notes || type.label}</div>
-                    <div className="text-xs text-slate-400">{formatDate(appt.date)} · {daysUntil(appt.date)} days</div>
-                  </div>
-                </div>
-              );
-            })}
-            {needsScheduling.length > 0 && (
-              <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-lg">
-                <div className="text-sm font-medium text-amber-400">⚠️ {needsScheduling.length} to schedule</div>
-              </div>
-            )}
-          </div>
-        </Section>
-      )}
 
       {/* ══════ MODALS ══════ */}
       {editingChecklist && (
