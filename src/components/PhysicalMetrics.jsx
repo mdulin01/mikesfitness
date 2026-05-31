@@ -10,6 +10,7 @@ const METRICS = [
   { key: 'vo2', label: 'VO₂ Max', unit: '', kind: 'bio', good: 'up', path: 'fitness.vo2max', color: '#22d3ee' },
   { key: 'hrv', label: 'HRV', unit: 'ms', kind: 'bio', good: 'up', path: 'vitals.hrv', color: '#34d399' },
   { key: 'rhr', label: 'Resting HR', unit: 'bpm', kind: 'bio', good: 'down', path: 'vitals.heartRateRest', color: '#fb923c' },
+  { key: 'sleep', label: 'Sleep', unit: 'hr', kind: 'bio', good: 'up', path: 'sleep.hoursTotal', color: '#818cf8' },
   { key: 'steps', label: 'Steps', unit: '', kind: 'act', good: 'up', path: 'activity.steps', color: '#3b82f6' },
   { key: 'exercise', label: 'Exercise', unit: 'min', kind: 'act', good: 'up', path: 'activity.exerciseMinutes', color: '#22c55e' },
   { key: 'swim', label: 'Swim', unit: 'm', kind: 'act', good: 'up', path: 'activity.swimDistanceMeters', color: '#06b6d4' },
