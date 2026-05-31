@@ -2,8 +2,6 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exercisePlan, motivationalQuotes } from '../data/exercisePlan';
 import { healthPlan } from '../data/healthPlan';
-import { getLatestValue, getTrend } from '../data/labData';
-import { imagingHistory, colonoscopyTimeline } from '../data/imagingData';
 import { ALL_EVENT_TYPES, MEAL_TYPES } from '../constants';
 import { toLocalDateStr, offsetDateStr } from '../utils/dateUtils';
 import { appleSeries, appleSum, appleAvg, appleLatest, appleTrend, sparklinePath } from '../utils/appleHealth';
@@ -16,7 +14,6 @@ const HABIT_GROUPS = {
   critical: [
     { key: 'workout', label: 'Exercise', emoji: '💪' },
     { key: 'sleep', label: '7+ hours sleep', emoji: '😴' },
-    { key: 'meds', label: 'All meds taken', emoji: '💊' },
   ],
   important: [
     { key: 'move', label: 'Move / Steps', emoji: '🏃' },
@@ -47,156 +44,10 @@ function Section({ title, emoji, defaultOpen = true, children }) {
   );
 }
 
-/* ─── System status helpers ─── */
-const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-
-// Helper: prefer Apple Health synced sleep over manual sleepLog. Returns
-// { hours, source: 'apple'|'manual'|null, bedtime?, wakeTime?, quality?, stages? }
-function getTodaySleep(data, dailyMetricsByDate, todayStr) {
-  const apple = dailyMetricsByDate?.[todayStr]?.sleep;
-  if (apple?.hoursTotal) {
-    return {
-      hours: apple.hoursTotal,
-      source: 'apple',
-      stages: apple.stages,
-    };
-  }
-  const manual = data?.sleepLog?.[todayStr] || {};
-  if (manual.hours) {
-    return { hours: manual.hours, source: 'manual', bedtime: manual.bedtime, wakeTime: manual.wakeTime, quality: manual.quality };
-  }
-  return { hours: null, source: null };
-}
-
-function systemStatus(key, data, dailyChecks, medChecks, dailyMetricsByDate) {
-  // Returns { status: 'green'|'yellow'|'red', label, detail }
-  switch (key) {
-    case 'cardio': {
-      const apoB = getLatestValue('ApoB');
-      const ldl = getLatestValue('LDL-C') || getLatestValue('LDL');
-      const val = apoB?.value ?? ldl?.value ?? null;
-      const ccta = imagingHistory.find(i => i.name === 'CT Coronary Angiogram with Plaque Analysis');
-      const cctaLine = ccta ? `CCTA: Zero plaque · ${fmtDate(ccta.date)}` : '';
-      if (val === null) return { status: 'yellow', label: 'No data', detail: cctaLine || 'No lab data' };
-      const line = apoB ? `ApoB ${apoB.value} mg/dL · ${fmtDate(apoB.date)} · Goal <70` : `LDL ${ldl.value} · ${fmtDate(ldl.date)}`;
-      const detail = [line, cctaLine].filter(Boolean).join('\n');
-      if (apoB && apoB.value < 80) return { status: 'green', label: `ApoB ${apoB.value}`, detail };
-      if (apoB && apoB.value < 100) return { status: 'yellow', label: `ApoB ${apoB.value}`, detail };
-      return { status: 'red', label: `ApoB ${apoB?.value || '?'}`, detail };
-    }
-    case 'kidney': {
-      const egfr = getLatestValue('eGFR');
-      const mri = imagingHistory.find(i => i.category === 'renal' && i.type === 'imaging');
-      const mriLine = mri ? `MRI: ${mri.summary.split('.')[0]} · ${fmtDate(mri.date)}` : '';
-      if (!egfr) return { status: 'yellow', label: 'No data', detail: mriLine || 'No eGFR data' };
-      const line = `eGFR ${egfr.value} · ${fmtDate(egfr.date)} · Goal ≥90`;
-      const trend = getTrend('eGFR');
-      const trendLine = trend && trend.length >= 2 ? `Trend: ${trend[trend.length - 2].value} → ${trend[trend.length - 1].value}` : '';
-      const detail = [line, trendLine, mriLine].filter(Boolean).join('\n');
-      if (egfr.value >= 90) return { status: 'green', label: `eGFR ${egfr.value}`, detail };
-      if (egfr.value >= 60) return { status: 'yellow', label: `eGFR ${egfr.value}`, detail };
-      return { status: 'red', label: `eGFR ${egfr.value}`, detail };
-    }
-    case 'metabolic': {
-      const a1c = getLatestValue('HbA1c');
-      const glucose = getLatestValue('Glucose');
-      if (a1c) {
-        const detail = `HbA1c ${a1c.value}% · ${fmtDate(a1c.date)} · Goal <5.7`;
-        if (a1c.value < 5.7) return { status: 'green', label: `A1c ${a1c.value}`, detail };
-        if (a1c.value < 6.5) return { status: 'yellow', label: `A1c ${a1c.value}`, detail };
-        return { status: 'red', label: `A1c ${a1c.value}`, detail };
-      }
-      if (glucose) {
-        const detail = `Glucose ${glucose.value} mg/dL · ${fmtDate(glucose.date)} · Goal <100`;
-        if (glucose.value < 100) return { status: 'green', label: `Glu ${glucose.value}`, detail };
-        return { status: 'yellow', label: `Glu ${glucose.value}`, detail };
-      }
-      return { status: 'yellow', label: 'No data', detail: 'No A1c or glucose data' };
-    }
-    case 'brain': {
-      const cognitive = dailyChecks['cognitive'];
-      const sleep = dailyChecks['sleep'];
-      const detail = `Today: ${cognitive ? '✓ Cognitive' : '✗ Cognitive'}, ${sleep ? '✓ Sleep' : '✗ Sleep'}`;
-      if (cognitive && sleep) return { status: 'green', label: 'Active', detail };
-      if (sleep || cognitive) return { status: 'yellow', label: 'Partial', detail };
-      return { status: 'red', label: 'Inactive', detail };
-    }
-    case 'muscle': {
-      const weights = data?.weightEntries || [];
-      const latest = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-      const bf = latest?.bodyFat;
-      const wt = latest?.weight;
-      const wTarget = healthPlan.weightGoals?.target || 185;
-      const lines = [];
-      if (wt) lines.push(`Weight ${wt} lbs · ${fmtDate(latest.date)} · Goal ${wTarget}`);
-      if (bf) lines.push(`Body fat ${bf}% · Goal <18%`);
-      const detail = lines.length ? lines.join('\n') : 'No data';
-      if (bf && bf < 20) return { status: 'green', label: `${bf}% BF`, detail };
-      if (bf && bf < 25) return { status: 'yellow', label: `${bf}% BF`, detail };
-      if (bf) return { status: 'red', label: `${bf}% BF`, detail };
-      return { status: 'yellow', label: 'No data', detail };
-    }
-    case 'gut': {
-      const calprotectin = getLatestValue('Fecal Calprotectin');
-      const latestColonoscopy = colonoscopyTimeline.length > 0 ? colonoscopyTimeline[colonoscopyTimeline.length - 1] : null;
-      const lines = [];
-      if (calprotectin) lines.push(`Calprotectin ${calprotectin.value} µg/g · ${fmtDate(calprotectin.date)} · Goal <50`);
-      if (latestColonoscopy) lines.push(`Colonoscopy: ${latestColonoscopy.finding} · ${fmtDate(latestColonoscopy.date)} · Dr. ${latestColonoscopy.provider}`);
-      const nextColonoscopy = imagingHistory.find(i => i.category === 'gi' && i.date === '2026-03-02');
-      if (nextColonoscopy?.details?.recommendations) {
-        const repeatRec = nextColonoscopy.details.recommendations.find(r => r.includes('Repeat'));
-        if (repeatRec) lines.push(`Next: ${repeatRec}`);
-      }
-      const detail = lines.length ? lines.join('\n') : 'No data';
-      // Status: yellow if active ulcers found on colonoscopy, even if calprotectin is normal
-      const hasActiveUlcers = latestColonoscopy && latestColonoscopy.finding.toLowerCase().includes('erosion');
-      if (hasActiveUlcers) {
-        const calLabel = calprotectin ? `Cal ${calprotectin.value}` : '';
-        return { status: 'yellow', label: calLabel || '2 ulcers', detail };
-      }
-      if (calprotectin) {
-        if (calprotectin.value < 50) return { status: 'green', label: `Cal ${calprotectin.value}`, detail };
-        if (calprotectin.value < 200) return { status: 'yellow', label: `Cal ${calprotectin.value}`, detail };
-        return { status: 'red', label: `Cal ${calprotectin.value}`, detail };
-      }
-      return { status: 'yellow', label: 'No data', detail };
-    }
-    case 'sleep': {
-      const todayStr = toLocalDateStr();
-      const s = getTodaySleep(data, dailyMetricsByDate, todayStr);
-      if (s.hours) {
-        let detail;
-        if (s.source === 'apple') {
-          const stageBits = s.stages
-            ? Object.entries(s.stages).filter(([k]) => k !== 'inbed').map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')
-            : '';
-          detail = `${s.hours.toFixed(1)} hrs · Apple Watch${stageBits ? ` · ${stageBits}` : ''}`;
-        } else {
-          detail = `${s.hours.toFixed(1)} hrs · Bed ${s.bedtime || '?'} · Wake ${s.wakeTime || '?'}${s.quality ? ` · Quality ${s.quality}/5` : ''} · manual`;
-        }
-        if (s.hours >= 7) return { status: 'green', label: `${s.hours.toFixed(1)} hrs`, detail };
-        if (s.hours >= 6) return { status: 'yellow', label: `${s.hours.toFixed(1)} hrs`, detail };
-        return { status: 'red', label: `${s.hours.toFixed(1)} hrs`, detail };
-      }
-      const slept = dailyChecks['sleep'];
-      const detail = slept ? 'Logged 7+ hours today' : 'Not yet logged today';
-      if (slept) return { status: 'green', label: '7+ hrs', detail };
-      return { status: 'red', label: 'Not logged', detail };
-    }
-    default:
-      return { status: 'yellow', label: '—', detail: '' };
-  }
-}
-
-const STATUS_COLORS = {
-  green: { dot: 'bg-green-500', bg: 'bg-green-900/20', text: 'text-green-400', border: 'border-green-800' },
-  yellow: { dot: 'bg-yellow-500', bg: 'bg-yellow-900/20', text: 'text-yellow-400', border: 'border-yellow-800' },
-  red: { dot: 'bg-red-500', bg: 'bg-red-900/20', text: 'text-red-400', border: 'border-red-800' },
-};
 
 export default function Dashboard({
   data, save, toggleDayCompletion, getWeekKey, toggleDailyItem,
-  toggleMedCheck, saveFastingEntry, saveFiberEntry, saveSleepEntry,
+  saveFastingEntry, saveFiberEntry, saveSleepEntry,
   getMonthKey,
   updateDailyItems,
   dailyMetricsByDate, lastDailyMetricsSync,
@@ -208,7 +59,6 @@ export default function Dashboard({
   const completions = data?.weeklyCompletions?.[weekKey] || {};
   const todayStr = today();
   const dailyChecks = data?.dailyChecklist?.[todayStr] || {};
-  const medChecks = data?.medicationChecks?.[todayStr] || {};
   const todayMeals = data?.mealLog?.[todayStr] || [];
   const daysCompleted = Object.values(completions).filter(Boolean).length;
   const todayDow = dayOfWeek();
@@ -267,11 +117,6 @@ export default function Dashboard({
   const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const daysUntil = (d) => Math.ceil((new Date(d) - new Date(todayStr)) / 86400000);
 
-  // Meds
-  const allScheduleItems = (healthPlan.medSchedule || []).flatMap(g => g.items.filter(i => !i.optional));
-  const totalMedItems = allScheduleItems.length;
-  const totalMedChecked = allScheduleItems.filter(i => medChecks[i.name]).length;
-  const allDone = totalMedChecked === totalMedItems;
 
   const dailyProgress = Object.values(dailyChecks).filter(Boolean).length;
   const dailyTotal = dailyItems.length;
@@ -279,81 +124,32 @@ export default function Dashboard({
   const startEditChecklist = () => { setEditItems([...dailyItems]); setEditingChecklist(true); };
   const saveChecklist = () => { updateDailyItems(editItems.filter(i => i.label.trim())); setEditingChecklist(false); };
 
-  // ===== SCORES =====
+  // ===== SCORE =====
   const scores = useMemo(() => {
-    // ── BEHAVIOR SCORE (0-100) ── what you did today
+    // Behavior score (0-100): what you did today, across 4 pillars (25 each).
     const workoutDone = dailyChecks['workout'] || false;
     const moveDone = dailyChecks['move'] || false;
     const mobilityDone = dailyChecks['mobility'] || false;
-    const exercisePts = (workoutDone ? 12 : 0) + (moveDone ? 4 : 0) + (mobilityDone ? 4 : 0); // 20 max
+    const exercisePts = (workoutDone ? 15 : 0) + (moveDone ? 5 : 0) + (mobilityDone ? 5 : 0); // 25 max
 
-    const mealPts = Math.min(10, todayMeals.length * 5);
-    const fiberPts = (medChecks['Fiber supplement'] ? 10 : 0);
-    const nutritionPts = mealPts + fiberPts; // 20 max
+    const nutritionPts = Math.min(25, todayMeals.length * 6); // 25 max
 
     const sleepEntry = data?.sleepLog?.[todayStr] || {};
-    const sleepPts = sleepEntry.hours ? (sleepEntry.hours >= 7 ? 20 : sleepEntry.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); // 20 max
+    const sleepPts = sleepEntry.hours ? (sleepEntry.hours >= 7 ? 25 : sleepEntry.hours >= 6 ? 15 : 6) : (dailyChecks['sleep'] ? 25 : 0); // 25 max
 
-    const medPts = totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0; // 20 max
-
-    // Fasting
     const lastMeal = todayFasting.lastMealYesterday || '';
     const firstMeal = todayFasting.firstMealToday || '';
     let fastPts = 0;
     if (lastMeal && firstMeal) {
       const [lh, lm] = lastMeal.split(':').map(Number);
       const [fh, fm] = firstMeal.split(':').map(Number);
-      const totalMins = (24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm);
-      const hrs = totalMins / 60;
-      fastPts = hrs >= fastingSettings.targetFastHours ? 20 : hrs >= 12 ? 10 : 0;
-    }
-    // 20 max
+      const hrs = ((24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm)) / 60;
+      fastPts = hrs >= fastingSettings.targetFastHours ? 25 : hrs >= 12 ? 12 : 0;
+    } // 25 max
 
-    const behavior = exercisePts + nutritionPts + sleepPts + medPts + fastPts; // 0-100
-
-    // ── BIOLOGY SCORE (0-100) ── your lab/vital numbers
-    // Each system scores 0-14.3 (7 systems)
-    const bioParts = [];
-    const apoB = getLatestValue('ApoB');
-    bioParts.push(apoB ? (apoB.value < 70 ? 14.3 : apoB.value < 90 ? 10 : apoB.value < 120 ? 5 : 0) : 7); // neutral if no data
-
-    const egfr = getLatestValue('eGFR');
-    bioParts.push(egfr ? (egfr.value >= 90 ? 14.3 : egfr.value >= 60 ? 10 : egfr.value >= 30 ? 5 : 0) : 7);
-
-    const a1c = getLatestValue('HbA1c');
-    bioParts.push(a1c ? (a1c.value < 5.7 ? 14.3 : a1c.value < 6.5 ? 10 : 5) : 7);
-
-    // Weight toward goal
-    const weights = data?.weightEntries || [];
-    const latestW = weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    const wTarget = healthPlan.weightGoals?.target || 185;
-    if (latestW) {
-      const diff = Math.abs(latestW.weight - wTarget);
-      bioParts.push(diff < 5 ? 14.3 : diff < 15 ? 10 : diff < 25 ? 5 : 0);
-    } else bioParts.push(7);
-
-    // BP
-    const bpEntries = data?.bpEntries || [];
-    const latestBP = bpEntries.length > 0 ? [...bpEntries].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
-    if (latestBP) {
-      bioParts.push(latestBP.systolic < 120 && latestBP.diastolic < 80 ? 14.3 :
-        latestBP.systolic < 130 ? 10 : latestBP.systolic < 140 ? 5 : 0);
-    } else bioParts.push(7);
-
-    // Body fat
-    const bf = latestW?.bodyFat;
-    bioParts.push(bf ? (bf < 18 ? 14.3 : bf < 22 ? 10 : bf < 28 ? 5 : 0) : 7);
-
-    // Gut (calprotectin)
-    const cal = getLatestValue('Fecal Calprotectin');
-    bioParts.push(cal ? (cal.value < 50 ? 14.3 : cal.value < 200 ? 10 : 5) : 7);
-
-    const biology = Math.round(bioParts.reduce((s, v) => s + v, 0));
-
-    const overall = Math.round(behavior * 0.5 + biology * 0.5);
-
-    return { overall, behavior, biology };
-  }, [dailyChecks, todayMeals, medChecks, totalMedChecked, totalMedItems, todayFasting, data?.weightEntries, data?.bpEntries]);
+    const behavior = Math.min(100, exercisePts + nutritionPts + sleepPts + fastPts);
+    return { behavior };
+  }, [dailyChecks, todayMeals, todayFasting, data?.sleepLog, fastingSettings]);
 
   // Body systems display (Cardio, Kidney, etc.) moved to Medical Overview — they're biology indicators, not actionable behavior.
 
@@ -378,7 +174,6 @@ export default function Dashboard({
     { key: 'workout', label: 'Exercise', done: dailyChecks['workout'] },
     { key: 'sleep', label: 'Sleep', done: dailyChecks['sleep'] },
     { key: 'nutrition', label: 'Nutrition', done: todayMeals.length >= 2 },
-    { key: 'meds', label: 'Meds', done: allDone },
     { key: 'fasting', label: 'Fasting', done: fastingStatus.metGoal },
   ];
 
@@ -409,7 +204,6 @@ export default function Dashboard({
               );
             })()}
           </div>
-          <a href="/medical" className="text-[10px] text-slate-500 hover:text-slate-300">Biology snapshot →</a>
         </div>
         <div className="flex items-baseline gap-2 mb-3">
           <span className={`text-4xl font-bold ${scoreColor(scores.behavior)}`}>{scores.behavior}</span>
@@ -426,16 +220,15 @@ export default function Dashboard({
           const walked = (todayActivity.distanceMiles || 0) >= 2;
           const autoExercise = exerciseMin >= 30 || swam || walked;
           const partialExercise = exerciseMin >= 15;
-          const exerciseValue = (autoExercise || dailyChecks['exercise']) ? 20 : (partialExercise ? 10 : 0);
+          const exerciseValue = (autoExercise || dailyChecks['exercise']) ? 25 : (partialExercise ? 12 : 0);
           const pillars = [
-            { label: 'Exercise', value: exerciseValue, max: 20 },
-            { label: 'Nutrition', value: Math.min(20, (todayMeals.filter(m => m.tags?.some(t => /protein|fiber/i.test(t))).length * 5) + (medChecks['Fiber supplement'] ? 10 : 0)), max: 20 },
-            { label: 'Sleep', value: (() => { const s = data?.sleepLog?.[todayStr] || {}; return s.hours ? (s.hours >= 7 ? 20 : s.hours >= 6 ? 12 : 5) : (dailyChecks['sleep'] ? 20 : 0); })(), max: 20 },
-            { label: 'Meds', value: totalMedItems > 0 ? Math.round((totalMedChecked / totalMedItems) * 20) : 0, max: 20 },
-            { label: 'Fasting', value: (() => { const f = todayFasting; if (!f.lastMealYesterday || !f.firstMealToday) return 0; const [lh, lm] = f.lastMealYesterday.split(':').map(Number); const [fh, fm] = f.firstMealToday.split(':').map(Number); const hrs = ((24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm)) / 60; return hrs >= fastingSettings.targetFastHours ? 20 : hrs >= 12 ? 10 : 0; })(), max: 20 },
+            { label: 'Exercise', value: exerciseValue, max: 25 },
+            { label: 'Nutrition', value: Math.min(25, todayMeals.length * 6), max: 25 },
+            { label: 'Sleep', value: (() => { const s = data?.sleepLog?.[todayStr] || {}; return s.hours ? (s.hours >= 7 ? 25 : s.hours >= 6 ? 15 : 6) : (dailyChecks['sleep'] ? 25 : 0); })(), max: 25 },
+            { label: 'Fasting', value: (() => { const f = todayFasting; if (!f.lastMealYesterday || !f.firstMealToday) return 0; const [lh, lm] = f.lastMealYesterday.split(':').map(Number); const [fh, fm] = f.firstMealToday.split(':').map(Number); const hrs = ((24 * 60 - (lh * 60 + lm)) + (fh * 60 + fm)) / 60; return hrs >= fastingSettings.targetFastHours ? 25 : hrs >= 12 ? 12 : 0; })(), max: 25 },
           ];
           return (
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               {pillars.map(p => {
                 const pct = (p.value / p.max) * 100;
                 const color = pct >= 90 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-500' : pct > 0 ? 'bg-orange-500' : 'bg-slate-600';
@@ -966,79 +759,6 @@ export default function Dashboard({
 
       {/* Water tracker removed — wasn't useful in practice. Old waterLog data still exists in Firestore but is no longer read or rendered. */}
 
-      {/* ══════ MEDS & SUPPLEMENTS ══════ */}
-      <Section title="Meds & Supplements" emoji="💊" defaultOpen={true}>
-        <div className="space-y-2">
-          {(healthPlan.medSchedule || []).map(group => {
-            const required = group.items.filter(i => !i.optional);
-            const checkedInGroup = required.filter(i => medChecks[i.name]).length;
-            const groupDone = checkedInGroup === required.length;
-            // Bulk-toggle handler. Calling toggleMedCheck() in a loop would race
-            // (each call captures stale `data`) — write the whole map in one save.
-            const toggleAllInGroup = () => {
-              const checks = { ...(data?.medicationChecks || {}) };
-              if (!checks[todayStr]) checks[todayStr] = { ...checks[todayStr] };
-              else checks[todayStr] = { ...checks[todayStr] };
-              const target = !groupDone; // if not all done → mark all true; if all done → clear all
-              for (const item of required) checks[todayStr][item.name] = target;
-              save?.({ medicationChecks: checks });
-            };
-            return (
-              <div key={group.time} className={`p-3 rounded-lg transition-all ${
-                groupDone ? 'bg-green-900/30 border border-green-700' : 'bg-slate-700/50 border border-slate-600'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-base">{group.emoji}</span>
-                  <span className={`text-sm font-medium ${groupDone ? 'text-green-400' : 'text-slate-300'}`}>{group.label}</span>
-                  <span className="text-xs text-slate-500 ml-auto">{checkedInGroup}/{required.length}</span>
-                  <button
-                    onClick={toggleAllInGroup}
-                    className={`text-[10px] font-semibold px-2 py-1 rounded-full border transition ${
-                      groupDone
-                        ? 'border-slate-600 text-slate-400 hover:bg-slate-600/30'
-                        : 'border-green-600 text-green-400 hover:bg-green-600/20'
-                    }`}
-                    title={groupDone ? 'Uncheck all in this group' : 'Mark all in this group as taken'}
-                  >
-                    {groupDone ? '↺ Clear' : '✓ All'}
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  {group.items.map(item => {
-                    const done = medChecks[item.name];
-                    return (
-                      <button key={item.name} onClick={() => !item.optional && toggleMedCheck(todayStr, item.name)}
-                        className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all text-sm ${
-                          item.optional ? 'opacity-60 cursor-default' :
-                          done ? 'bg-green-900/20 text-green-400' : 'text-slate-400 hover:bg-slate-700/50'
-                        }`}>
-                        {!item.optional && (
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                            done ? 'border-green-500 bg-green-500' : 'border-slate-500'
-                          }`}>{done && <span className="text-white text-[10px]">✓</span>}</div>
-                        )}
-                        {item.optional && <span className="w-4 text-center text-slate-600">–</span>}
-                        <span className={`flex-1 text-left ${done ? 'line-through' : ''}`}>
-                          {item.name}
-                          {item.rx && <span className="text-[10px] ml-1 px-1 py-0.5 rounded bg-blue-900/50 text-blue-400">Rx</span>}
-                        </span>
-                        <span className="text-[10px] text-slate-500">{item.notes}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <div className="flex-1 bg-slate-700 rounded-full h-2">
-            <div className={`rounded-full h-2 transition-all ${allDone ? 'bg-green-500' : 'bg-amber-500'}`}
-              style={{ width: `${totalMedItems > 0 ? (totalMedChecked / totalMedItems) * 100 : 0}%` }} />
-          </div>
-          <span className="text-xs text-slate-400">{totalMedChecked}/{totalMedItems}</span>
-        </div>
-      </Section>
 
       {/* ══════ NUTRITION SUMMARY ══════ */}
       <Section title="Today's Nutrition" emoji="🍽️" defaultOpen={true}>

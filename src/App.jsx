@@ -6,9 +6,7 @@ import LoginScreen from './components/LoginScreen';
 import Nav from './components/Nav';
 import Dashboard from './pages/Dashboard';
 import Training from './pages/Training';
-import Health from './pages/Health';
 import Nutrition from './pages/Nutrition';
-import Medical from './pages/Medical';
 import Life from './pages/Life';
 import Triathlon from './pages/Triathlon';
 
@@ -54,9 +52,7 @@ export default function App() {
             <Route path="/" element={<Dashboard {...healthData} />} />
             <Route path="/nutrition" element={<Nutrition {...healthData} />} />
             <Route path="/training" element={<Training {...healthData} />} />
-            <Route path="/health" element={<Health {...healthData} />} />
-            <Route path="/medical" element={<Medical {...healthData} />} />
-            <Route path="/life" element={<Life {...healthData} />} />
+                <Route path="/life" element={<Life {...healthData} />} />
             <Route path="/triathlon" element={<Triathlon {...healthData} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

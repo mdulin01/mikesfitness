@@ -9,8 +9,6 @@ export const SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', emoji: '📊' },
   { id: 'nutrition', label: 'Nutrition', emoji: '🥗' },
   { id: 'training', label: 'Training', emoji: '🏋️' },
-  { id: 'health', label: 'Health', emoji: '❤️' },
-  { id: 'medical', label: 'Medical', emoji: '🏥' },
   { id: 'life', label: 'Life', emoji: '📅' },
 ];
 
