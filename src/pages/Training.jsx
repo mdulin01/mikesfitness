@@ -286,8 +286,17 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
   }, [dailyMetricsByDate]);
 
   // Fitness events from shared appointments data
-  const fitnessEvents = (data?.appointments || [])
-    .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr)
+  // Races come from two places: locally-added fitness appointments AND the shared
+  // tripData/fitness record that mikeandadam writes (10k, half, tri). Merge + dedupe
+  // so anything Mike adds in Mike & Adam shows up here automatically.
+  const sharedRaces = (rest.sharedFitness?.events || [])
+    .filter(e => e.date && e.date >= todayStr)
+    .map(e => ({ id: e.id, type: e.type, date: e.date, location: e.location || '', notes: e.name, emoji: e.emoji, color: e.color, shared: true }));
+  const apptRaces = (data?.appointments || [])
+    .filter(a => a.category === 'fitness' && a.date && a.status === 'scheduled' && a.date >= todayStr);
+  const _seen = new Set();
+  const fitnessEvents = [...sharedRaces, ...apptRaces]
+    .filter(e => (e.id && _seen.has(e.id)) ? false : (_seen.add(e.id), true))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Navigate lift log dates
@@ -696,13 +705,14 @@ export default function Training({ data, toggleDayCompletion, getWeekKey, saveWe
                 const type = ALL_EVENT_TYPES.find(t => t.id === event.type);
                 const daysLeft = Math.ceil((new Date(event.date) - new Date()) / 86400000);
                 const weeksLeft = Math.ceil(daysLeft / 7);
-                const color = type?.color || '#3b82f6';
+                const color = event.color || type?.color || '#3b82f6';
+                const emoji = event.emoji || type?.emoji || '🏅';
                 return (
                   <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg mb-2" style={{ background: color + '20' }}>
-                    <span className="text-2xl">{type?.emoji || '🏅'}</span>
+                    <span className="text-2xl">{emoji}</span>
                     <div className="flex-1">
                       <div className="font-medium text-white">{event.notes || type?.label || 'Event'}</div>
-                      <div className="text-xs text-slate-400">{event.location} · {daysLeft} days ({weeksLeft} weeks) away</div>
+                      <div className="text-xs text-slate-400">{event.location ? event.location + ' · ' : ''}{daysLeft} days ({weeksLeft} weeks) away{event.shared && <span className="text-blue-400"> · Mike &amp; Adam</span>}</div>
                     </div>
                   </div>
                 );
