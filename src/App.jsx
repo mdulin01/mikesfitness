@@ -4,6 +4,8 @@ import { useHealthData } from './hooks/useHealthData';
 import { ToastProvider } from './components/Toast';
 import LoginScreen from './components/LoginScreen';
 import Nav from './components/Nav';
+import RupertBanner from './components/RupertBanner';
+import { db } from './firebase-config';
 import Dashboard from './pages/Dashboard';
 import Training from './pages/Training';
 import Nutrition from './pages/Nutrition';
@@ -47,6 +49,7 @@ export default function App() {
       <ToastProvider>
         <div className="min-h-screen bg-slate-900">
           <Nav user={user} onLogout={logout} />
+          <RupertBanner db={db} accent="#34d399" />
           <Routes>
             <Route path="/" element={<Dashboard {...healthData} />} />
             <Route path="/nutrition" element={<Nutrition {...healthData} />} />
