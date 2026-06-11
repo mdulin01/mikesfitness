@@ -92,10 +92,10 @@ export const trainingEvents = [
     name: 'Wrightsville Beach Triathlon',
     emoji: '🏊',
     type: 'triathlon',
-    date: '2026-09-27',
+    date: '2026-09-26',
     location: 'Wrightsville Beach, NC',
     color: '#2563eb',
-    description: 'Triathlon at Wrightsville Beach',
+    description: 'YMCA Wrightsville Beach Sprint — 1150m swim · 11.5mi bike · 5K run (registered, #107680517)',
   },
 ];
 

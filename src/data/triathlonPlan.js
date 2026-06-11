@@ -1,6 +1,6 @@
 // Wrightsville Beach Sprint Triathlon training plan (Mike-only).
-// Race: Sunday 2026-09-27 — 1500m ocean swim + ~12 mi sprint bike + 5K run.
-// Note: 1500m is technically Olympic-distance swim; this plan handles it as such.
+// Race: Saturday 2026-09-26 — YMCA Wrightsville Beach Sprint: 1150m swim + 11.5 mi bike + 5K run (reg #107680517).
+// Note: plan trains swim to 1500 yds — a deliberate overshoot of the 1150m race distance.
 //
 // This plan stores ONLY bike + swim sessions. Running workouts come from
 // whichever shared running plan (Cary 10K, Greensboro Half) is active by date —
@@ -10,7 +10,7 @@
 //   Phase 1 — Base       (Weeks 1-6,  May 10 → Jun 20):  form + base aerobic
 //   Phase 2 — Build      (Weeks 7-12, Jun 21 → Aug 1):   add intensity, longer rides
 //   Phase 3 — Peak       (Weeks 13-18, Aug 2 → Sep 12):  race-distance work + open water
-//   Phase 4 — Taper      (Weeks 19-20, Sep 13 → Sep 27): cut volume, race
+//   Phase 4 — Taper      (Weeks 19-20, Sep 13 → Sep 26): cut volume, race Saturday
 //
 // Workout shape (consistent with mikeandadam's plan structure):
 //   { id, label, distance, mike: false, notes }
