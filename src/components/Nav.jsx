@@ -75,20 +75,24 @@ export default function Nav({ user, onLogout }) {
         </div>
       )}
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 flex z-50">
+      {/* Mobile floating dock — translucent pill, spectrum indicator, docked 🦚 */}
+      <nav className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 bg-slate-900/80 backdrop-blur-xl border border-slate-600/40 rounded-full px-2 py-1.5 shadow-2xl">
         {SECTIONS.map(s => (
           <button
             key={s.id}
             onClick={() => navigate(getPathForSection(s.id))}
-            className={`flex-1 py-2 pt-2 pb-3 flex flex-col items-center gap-0.5 text-xs transition-colors ${
-              isActiveSection(s.id) ? 'text-blue-400' : 'text-slate-500'
+            className={`relative flex flex-col items-center gap-0.5 text-[10px] font-semibold px-3 py-1 transition-colors ${
+              isActiveSection(s.id) ? 'text-slate-100' : 'text-slate-500'
             }`}
           >
-            <span className="text-lg">{s.emoji}</span>
+            <span className="text-[19px] leading-tight">{s.emoji}</span>
             <span>{s.label}</span>
+            {isActiveSection(s.id) && <span className="absolute -bottom-0.5 w-4 h-0.5 rounded-full" style={{ background: 'linear-gradient(90deg,#e40303,#ff8c00,#ffd700,#008026,#3b82f6,#732982)' }} />}
           </button>
         ))}
+        <a href="https://mikeslife.app/?rupert=1" title="Talk to Rupert"
+          {...(typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone) ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+          className="text-[21px] px-2 pb-1" style={{ filter: 'drop-shadow(0 0 7px rgba(52,211,153,.45))' }}>🦚</a>
       </nav>
 
       {/* Mobile header */}
