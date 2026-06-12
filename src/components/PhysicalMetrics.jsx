@@ -69,7 +69,27 @@ function MiniSpark({ series, color }) {
   return <svg viewBox="0 0 100 18" className="w-full h-4" preserveAspectRatio="none"><path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-export default function PhysicalMetrics({ data, dailyMetricsByDate }) {
+const ago = (ms) => {
+  if (!ms) return null;
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+};
+
+// "6/12" or "6/12 7:42am" — date of the latest reading, plus the ingest time when
+// that day's Apple Health doc carries a lastSync timestamp.
+function stampFor(m, latest, dm) {
+  if (!latest?.date) return null;
+  const [, mo, da] = latest.date.split('-');
+  let out = `${+mo}/${+da}`;
+  if (m.src !== 'weight') {
+    const t = dm?.[latest.date]?.lastSync;
+    const d = t?.toDate ? t.toDate() : null;
+    if (d) out += ' ' + d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
+  }
+  return out;
+}
+
+export default function PhysicalMetrics({ data, dailyMetricsByDate, lastDailyMetricsSync }) {
   const [sel, setSel] = useState(null);
   const [period, setPeriod] = useState('month');
 
@@ -83,7 +103,10 @@ export default function PhysicalMetrics({ data, dailyMetricsByDate }) {
 
   return (
     <div className="space-y-2">
-      <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Physical Metrics <span className="text-slate-600 normal-case tracking-normal">· tap a tile for trends</span></div>
+      <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold flex items-center justify-between flex-wrap gap-1">
+        <span>Physical Metrics <span className="text-slate-600 normal-case tracking-normal">· tap a tile for trends</span></span>
+        {lastDailyMetricsSync && <span className="text-slate-600 normal-case tracking-normal">Apple sync {ago(lastDailyMetricsSync)}</span>}
+      </div>
       <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-2">
         {tiles.map(({ m, series, latest, trend }) => {
           const isSel = m.key === sel;
@@ -97,6 +120,7 @@ export default function PhysicalMetrics({ data, dailyMetricsByDate }) {
                 <span className={`text-[10px] ${arrowColor}`}>{trend.arrow}</span>
               </div>
               <div className="text-lg font-bold text-white leading-tight">{fmt(m, latest.value)}<span className="text-[10px] text-slate-500 font-normal"> {m.unit}</span></div>
+              <div className="text-[9px] text-slate-500 font-mono leading-tight">{stampFor(m, latest, dailyMetricsByDate)}</div>
               <div className="mt-1"><MiniSpark series={series} color={m.color} /></div>
             </button>
           );
