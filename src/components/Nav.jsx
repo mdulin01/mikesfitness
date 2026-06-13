@@ -76,23 +76,23 @@ export default function Nav({ user, onLogout }) {
       )}
 
       {/* Mobile floating dock — translucent pill, spectrum indicator, docked 🦚 */}
-      <nav className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 bg-slate-900/80 backdrop-blur-xl border border-slate-600/40 rounded-full px-2 py-1.5 shadow-2xl">
+      <nav className="md:hidden fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-slate-900/85 backdrop-blur-xl border border-slate-600/50 rounded-full px-2.5 py-2 shadow-2xl max-w-[calc(100vw-24px)]" style={{ bottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
         {SECTIONS.map(s => (
           <button
             key={s.id}
             onClick={() => navigate(getPathForSection(s.id))}
-            className={`relative flex flex-col items-center gap-0.5 text-[10px] font-semibold px-3 py-1 transition-colors ${
+            className={`relative flex flex-col items-center gap-0.5 text-[10px] font-semibold px-3 py-1.5 min-w-[46px] transition-colors ${
               isActiveSection(s.id) ? 'text-slate-100' : 'text-slate-500'
             }`}
           >
-            <span className="text-[19px] leading-tight">{s.emoji}</span>
+            <span className="text-[22px] leading-none">{s.emoji}</span>
             <span>{s.label}</span>
             {isActiveSection(s.id) && <span className="absolute -bottom-0.5 w-4 h-0.5 rounded-full" style={{ background: 'linear-gradient(90deg,#e40303,#ff8c00,#ffd700,#008026,#3b82f6,#732982)' }} />}
           </button>
         ))}
         <a href="https://mikeslife.app/?rupert=1" title="Talk to Rupert"
           {...(typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone) ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-          className="text-[21px] px-2 pb-1" style={{ filter: 'drop-shadow(0 0 7px rgba(52,211,153,.45))' }}>🦚</a>
+          className="text-[24px] px-2.5 pb-1" style={{ filter: 'drop-shadow(0 0 7px rgba(52,211,153,.45))' }}>🦚</a>
       </nav>
 
       {/* Mobile header */}
