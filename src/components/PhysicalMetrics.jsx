@@ -17,12 +17,29 @@ const METRICS = [
   { key: 'activeCal', label: 'Active Cal', unit: 'kcal', kind: 'act', good: 'up', path: 'activity.activeEnergyKcal', color: '#f43f5e' },
 ];
 
-const weightSeries = (data, field) =>
-  (data?.weightEntries || []).filter(e => e[field] != null && e.date)
-    .map(e => ({ date: e.date, value: Number(e[field]) }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+// Body fat from the scale can arrive as a fraction (0.195) or a percentage (19.5)
+// depending on the Health export; weightEntries store a percentage, so fold any
+// fraction up to match (and never render 1950%).
+const bfPct = (v) => (v != null && v < 1 ? v * 100 : v);
 
-const seriesFor = (m, data, dm) => (m.src === 'weight' ? weightSeries(data, m.field) : appleSeries(dm, m.path, 1095));
+// Weight + BF: merge the manual weightEntries log with the LIVE Apple-Health scale
+// readings (dailyMetrics.vitals.weightLbs / bodyFatPct) the ingest function already
+// writes — same date → live wins. Previously the tiles read weightEntries only, so a
+// fresh scale sync (which lands in dailyMetrics) never moved them off the old log.
+const bioSeries = (data, field, dm) => {
+  const byDate = {};
+  for (const e of (data?.weightEntries || [])) if (e[field] != null && e.date) byDate[e.date] = Number(e[field]);
+  if (dm) {
+    const path = field === 'weight' ? ['vitals', 'weightLbs'] : ['vitals', 'bodyFatPct'];
+    for (const [date, doc] of Object.entries(dm)) {
+      let v = doc; for (const k of path) v = v?.[k];
+      if (typeof v === 'number') byDate[date] = field === 'bodyFat' ? bfPct(v) : v;
+    }
+  }
+  return Object.entries(byDate).map(([date, value]) => ({ date, value })).sort((a, b) => a.date.localeCompare(b.date));
+};
+
+const seriesFor = (m, data, dm) => (m.src === 'weight' ? bioSeries(data, m.field, dm) : appleSeries(dm, m.path, 1095));
 
 const fmt = (m, v) => v == null ? '—'
   : (m.key === 'steps' || m.key === 'swim' || m.key === 'activeCal') ? Math.round(v).toLocaleString()
@@ -81,11 +98,11 @@ function stampFor(m, latest, dm) {
   if (!latest?.date) return null;
   const [, mo, da] = latest.date.split('-');
   let out = `${+mo}/${+da}`;
-  if (m.src !== 'weight') {
-    const t = dm?.[latest.date]?.lastSync;
-    const d = t?.toDate ? t.toDate() : null;
-    if (d) out += ' ' + d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
-  }
+  // Append the ingest time when the latest reading came from an Apple-Health doc
+  // (true for the non-weight metrics, and now for scale-sourced weight/BF too).
+  const t = dm?.[latest.date]?.lastSync;
+  const d = t?.toDate ? t.toDate() : null;
+  if (d) out += ' ' + d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
   return out;
 }
 
