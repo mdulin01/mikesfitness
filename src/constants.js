@@ -6,9 +6,11 @@ export const COLLECTIONS = {
 };
 
 export const SECTIONS = [
-  { id: 'dashboard', label: 'Dashboard', emoji: '📊' },
-  { id: 'nutrition', label: 'Nutrition', emoji: '🥗' },
-  { id: 'training', label: 'Training', emoji: '🏋️' },
+  { id: 'dashboard', label: 'Home', emoji: '📊' },
+  { id: 'train', label: 'Train', emoji: '💪' },
+  { id: 'plan', label: 'Plan', emoji: '🗓️' },
+  { id: 'progress', label: 'Progress', emoji: '📈' },
+  { id: 'triathlon', label: 'Tri', emoji: '🏊' },
 ];
 
 // Medical appointment types

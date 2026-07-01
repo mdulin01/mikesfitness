@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useHealthData } from './hooks/useHealthData';
+import { useTraining } from './hooks/useTraining';
 import { ToastProvider } from './components/Toast';
 import LoginScreen from './components/LoginScreen';
 import Nav from './components/Nav';
 import RupertBanner from './components/RupertBanner';
 import { db } from './firebase-config';
 import Dashboard from './pages/Dashboard';
-import Training from './pages/Training';
-import Nutrition from './pages/Nutrition';
+import Train from './pages/Train';
+import PlanWeek from './pages/PlanWeek';
+import Progress from './pages/Progress';
 import Triathlon from './pages/Triathlon';
 
 export default function App() {
@@ -37,6 +39,7 @@ export default function App() {
     return () => { document.removeEventListener('touchstart', onStart); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); };
   }, []);
   const healthData = useHealthData(user);
+  const training = useTraining(user, healthData.data);
   const {
     data, loading: dataLoading,
   } = healthData;
@@ -75,14 +78,18 @@ export default function App() {
           <Nav user={user} onLogout={logout} />
           <RupertBanner db={db} accent="#34d399" />
           <Routes>
-            <Route path="/" element={<Dashboard {...healthData} />} />
-            <Route path="/nutrition" element={<Nutrition {...healthData} />} />
-            <Route path="/training" element={<Training {...healthData} />} />
+            <Route path="/" element={<Dashboard {...healthData} training={training} />} />
+            <Route path="/train" element={<Train {...healthData} training={training} />} />
+            <Route path="/plan" element={<PlanWeek training={training} />} />
+            <Route path="/progress" element={<Progress {...healthData} training={training} />} />
             <Route path="/triathlon" element={<Triathlon {...healthData} />} />
+            {/* legacy paths */}
+            <Route path="/training" element={<Navigate to="/train" replace />} />
+            <Route path="/nutrition" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <footer className="hidden md:block text-center py-4 text-slate-600 text-xs">
-            Made by Mike Dulin, MD · Build 14
+            Made by Mike Dulin, MD · Build 15
           </footer>
         </div>
       </ToastProvider>
