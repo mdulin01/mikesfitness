@@ -11,14 +11,20 @@ import { planForWrite } from '../../src/utils/planRollout';
 import { normalizeNextRace } from '../../src/utils/triathlon';
 
 const currentWeekStart = '2026-10-26';
-const effectiveDate = '2026-10-25';
-const makeWeek = week => buildWeekFromTemplate(week, undefined, { effectiveDate });
+const effectiveDate = new URLSearchParams(window.location.search).has('legacy') ? null : '2026-10-25';
+const makeWeek = week => buildWeekFromTemplate(week, undefined, { effectiveDate: effectiveDate || week });
 export default function Preview() {
   const [plans, setPlans] = useState(() => ({ [currentWeekStart]: makeWeek(currentWeekStart) }));
   const [sessions, setSessions] = useState([]);
   const [nextRace, setNextRace] = useState(null);
   const ensureWeek = useCallback(week => setPlans(p => p[week] ? p : { ...p, [week]: makeWeek(week) }), []);
-  const saveDay = useCallback(async (week, index, updates) => setPlans(p => ({ ...p, [week]: { ...p[week], days: p[week].days.map((d, i) => i === index ? { ...d, ...updates } : d) } })), []);
+  const saveDay = useCallback(async (week, index, updates) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    if (new URLSearchParams(window.location.search).has('failSave')) throw new Error('Synthetic save failure');
+    const publish = () => setPlans(p => ({ ...p, [week]: { ...p[week], days: p[week].days.map((d, i) => i === index ? { ...d, ...(typeof updates === 'function' ? updates(d) : updates) } : d) } }));
+    if (new URLSearchParams(window.location.search).has('lateSnapshot')) setTimeout(publish, 200);
+    else publish();
+  }, []);
   const regenerateWeek = async week => {
     const fresh = planForWrite({ existing: plans[week], weekStart: week, today: currentWeekStart, effectiveDate, regenerate: true });
     if (fresh) setPlans(p => ({ ...p, [week]: fresh }));

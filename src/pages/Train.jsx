@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../hooks/useToast';
 import { toLocalDateStr } from '../utils/dateUtils';
-import { readinessFrom, shortDate, epleyE1RM, lastPerformance } from '../utils/training';
+import { readinessFrom, shortDate, epleyE1RM, lastProgressionPerformance } from '../utils/training';
 import { EXERCISES, EXERCISE_MAP, EXERCISE_CATEGORIES, MOBILITY_ROUTINE } from '../data/exercises';
 
 const CARDIO_TYPES = [
@@ -65,7 +65,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
         exerciseId: b.exerciseId, name: b.name,
         repRange: b.repRange || EXERCISE_MAP[b.exerciseId]?.repRange || [8, 12],
         unit: b.unit || EXERCISE_MAP[b.exerciseId]?.unit || 'reps',
-        note: b.note,
+        note: b.note, trainingPhase: b.trainingPhase || 'normal',
         sets: Array.from({ length: b.sets || 3 }, () => ({ weight: b.weight ?? '', reps: '', done: false })),
       })),
     });
@@ -112,7 +112,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
   }));
   const removeBlock = (bi) => setWork(w => ({ ...w, blocks: w.blocks.filter((_, i) => i !== bi) }));
   const addBlock = (ex) => {
-    const last = lastPerformance(ex.id, sessions);
+    const last = lastProgressionPerformance(ex.id, sessions);
     setWork(w => ({
       ...w,
       blocks: [...w.blocks, {
@@ -128,7 +128,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
     let session;
     if (mode === 'strength') {
       const exercises = work.blocks
-        .map(b => ({ id: b.exerciseId, name: b.name, plannedSets: b.sets.length, sets: b.sets.filter(s => s.done && Number(s.reps) > 0).map(s => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, done: true })) }))
+        .map(b => ({ id: b.exerciseId, name: b.name, plannedSets: b.sets.length, trainingPhase: b.trainingPhase || 'normal', sets: b.sets.filter(s => s.done && Number(s.reps) > 0).map(s => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, done: true })) }))
         .filter(e => e.sets.length > 0);
       if (exercises.length === 0) { toast('Nothing logged yet — check off at least one set', 'error'); return; }
       session = { date: todayStr, type: 'strength', title: todayPlan?.type === 'strength' ? todayPlan.title : 'Strength', exercises, durationMin, effort: effort + 1, notes };
@@ -155,7 +155,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
       setMode(null); setSelectedPlanDay(null); setWork(null); setNotes(''); setEffort(2); setMobilityDone({});
       setCardio({ type: 'bike', durationMin: '', distance: '', avgHR: '', effort: 2, notes: '' });
       if (prs?.length) toast(`🎉 New PR! ${prs.map(p => `${p.name}: ${p.weight}×${p.reps} (e1RM ${p.e1RM})`).join(' · ')}`, 'success');
-      else toast('Session saved 💪', 'success');
+      else toast(todayPlan && session.planDay == null ? `Session saved as an extra workout; ${todayPlan.title} remains ${todayPlan.status === 'done' ? 'complete' : 'on your plan'}.` : 'Session saved 💪', 'success');
     } catch (e) { console.error(e); toast('Save failed — try again', 'error'); }
   };
 
@@ -208,7 +208,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
               ) : (
                 <div className="mt-4 flex gap-2 flex-wrap">
                   <button onClick={startToday} className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl">▶ Start session</button>
-                  <button onClick={() => saveDay(currentWeekStart, todayIdx, { status: todayPlan.status === 'skipped' ? 'planned' : 'skipped' })} className="text-slate-400 hover:text-slate-200 px-3 py-2.5 text-sm">
+                  <button onClick={() => saveDay(currentWeekStart, todayIdx, { status: todayPlan.status === 'skipped' ? 'planned' : 'skipped' }).catch(() => toast('Could not update this session. Try again.', 'error'))} className="text-slate-400 hover:text-slate-200 px-3 py-2.5 text-sm">
                     {todayPlan.status === 'skipped' ? 'Un-skip' : 'Skip session'}
                   </button>
                 </div>

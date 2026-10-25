@@ -19,6 +19,16 @@ add 2.5 lb. New logs retain planned set counts even if fewer sets were completed
 legacy logs retain their prior interpretation. Bodyweight/time exercises do not
 automatically receive a weight increase.
 
+New logged exercises retain their technique/deload phase. Progression uses the
+latest normal working load when available, so a reduced week does not reset the
+working weight. With only reduced-load history, it uses that load without reducing
+it again. History and PR readers are unchanged. The new plan's bench range is
+6–10; the shared library and legacy plans retain their previous 8–12 range.
+
+Plan fields keep typed edits locally and commit on blur (or Enter). Save failures
+show a message and retain the typed value. Zone 2 selects the bike session; new
+strength blocks use the viewed week's A/B order and phase.
+
 Optional sessions never increase required weekly strength above two and never
 count as missed. An optional-only day without activity is neutral for the move
 streak (it neither adds to nor breaks it). Completed optional sessions still count
@@ -44,6 +54,10 @@ never written. An existing pre-rollout current week is kept unchanged. Eligible,
 unstarted old-template weeks migrate when opened; week-level notes are retained.
 Manual regeneration uses the same protection. The old template remains in source
 for pre-rollout current weeks that have not previously been saved.
+Regeneration is disabled with an explanation for pre-rollout weeks. Migration of
+an eligible unstarted legacy week replaces its day-level edits (including skips,
+exercise additions and changed session types); week-level notes remain. A week
+with any completed session is always preserved in full.
 
 ## Triathlon
 

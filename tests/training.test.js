@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWeekFromTemplate, WEEK_TEMPLATE, TEMPLATE_VERSION } from '../src/data/programTemplate.js';
+import { buildWeekFromTemplate, WEEK_TEMPLATE, TEMPLATE_VERSION, dayTemplateForType } from '../src/data/programTemplate.js';
 import { EXERCISE_MAP } from '../src/data/exercises.js';
-import { suggestNextLoad, weeklyPillarSummary, computeStreaks, weekDates, lastPerformance, computePRs } from '../src/utils/training.js';
+import { suggestNextLoad, weeklyPillarSummary, computeStreaks, weekDates, lastPerformance, lastProgressionPerformance, computePRs } from '../src/utils/training.js';
 import { planForWrite, validEffectiveDate, writePlanTransaction } from '../src/utils/planRollout.js';
 import { activeTriPlan, normalizeNextRace } from '../src/utils/triathlon.js';
+import { editPlanBlock } from '../src/utils/planEdits.js';
 
 const effectiveDate = '2026-10-25';
 const weekStart = '2026-10-26';
@@ -191,4 +192,68 @@ test('new logs preserve planned set counts so unfinished sessions cannot earn a 
   const last = lastPerformance('rdl', sessions);
   assert.equal(last.plannedSets, 3);
   assert.equal(suggestNextLoad(EXERCISE_MAP.rdl, last).weight, 50);
+});
+
+
+test('progression resumes the normal working load after technique and deload sessions', () => {
+  const log = (date, weight, trainingPhase, reps = 12) => ({ date, exercises: [{ id: 'rdl', trainingPhase, plannedSets: 2,
+    sets: [{ weight, reps, done: true }, { weight, reps, done: true }] }] });
+  const sessions = [log('2026-11-23', 70, 'deload'), log('2026-11-16', 100, 'normal'), log('2026-11-02', 50, 'technique')];
+  const before = structuredClone(sessions);
+  assert.equal(lastPerformance('rdl', sessions).weight, 70);
+  assert.equal(lastProgressionPerformance('rdl', sessions).weight, 100);
+  assert.equal(suggestNextLoad(EXERCISE_MAP.rdl, lastProgressionPerformance('rdl', sessions)).weight, 105);
+  assert.equal(suggestNextLoad(EXERCISE_MAP.rdl, lastProgressionPerformance('rdl', sessions), { deload: true }).weight, 70);
+  assert.deepEqual(sessions, before);
+});
+
+test('reduced-load-only history is a fallback and is not reduced again during technique weeks', () => {
+  const sessions = [{ date: '2026-10-26', exercises: [{ id: 'rdl', trainingPhase: 'technique', plannedSets: 3,
+    sets: [{ weight: 30, reps: 10, done: true }] }] }];
+  const last = lastProgressionPerformance('rdl', sessions);
+  assert.equal(last.weight, 30);
+  assert.equal(suggestNextLoad(EXERCISE_MAP.rdl, last, { technique: true }).weight, 30);
+  assert.equal(lastProgressionPerformance('bench', sessions), null);
+});
+
+test('phases are attached per exercise so upper-body technique-week work remains normal', () => {
+  const blocks = build(weekStart).days.flatMap(d => d.blocks);
+  assert.equal(blocks.find(b => b.exerciseId === 'rdl').trainingPhase, 'technique');
+  assert.equal(blocks.find(b => b.exerciseId === 'bench').trainingPhase, 'normal');
+  assert.ok(build('2026-11-23').days.flatMap(d => d.blocks).every(b => b.trainingPhase === 'deload'));
+});
+
+test('bench 6–10 belongs only to the new template; legacy bench stays 8–12', () => {
+  assert.deepEqual(EXERCISE_MAP.bench.repRange, [8, 12]);
+  assert.deepEqual(build(weekStart).days.flatMap(d => d.blocks).find(b => b.exerciseId === 'bench').repRange, [6, 10]);
+  const legacy = planForWrite({ ...options, effectiveDate: null });
+  assert.deepEqual(legacy.days.flatMap(d => d.blocks).find(b => b.exerciseId === 'bench').repRange, [8, 12]);
+  const prior = { ...performance, sets: performance.sets.map(s => ({ ...s, reps: 10 })) };
+  assert.equal(suggestNextLoad(EXERCISE_MAP.bench, prior).weight, 100);
+});
+
+test('day-type choices select the bike and the correct alternating strength phase', () => {
+  assert.equal(dayTemplateForType(build(weekStart), 'cardio', weekStart).cardioType, 'bike');
+  assert.match(dayTemplateForType(build('2026-11-02'), 'strength', '2026-11-02').title, /Strength B/);
+  const deload = dayTemplateForType(build('2026-11-23'), 'strength', '2026-11-25');
+  assert.match(deload.title, /Strength B/);
+  assert.ok(deload.blocks.every(b => b.sets === 2 && b.trainingPhase === 'deload'));
+});
+
+
+test('a weight edit and a different row removal commute without losing or misassigning weight', () => {
+  const original = { blocks: [{ id: 'a', exerciseId: 'rdl', weight: 50 }, { id: 'b', exerciseId: 'bench', weight: 100 }] };
+  const setWeight = day => editPlanBlock(day, original.blocks[1], 1, (blocks, idx) => blocks.map((b, i) => i === idx ? { ...b, weight: 135 } : b));
+  const removeFirst = day => editPlanBlock(day, original.blocks[0], 0, (blocks, idx) => blocks.filter((_, i) => i !== idx));
+  const expected = { blocks: [{ id: 'b', exerciseId: 'bench', weight: 135 }] };
+  assert.deepEqual(removeFirst(setWeight(original)), expected);
+  assert.deepEqual(setWeight(removeFirst(original)), expected);
+  assert.equal(original.blocks[1].weight, 100);
+});
+
+test('stale block edits reject a changed exercise or shifted legacy position', () => {
+  const identity = { id: 'a', exerciseId: 'latpull' };
+  assert.throws(() => editPlanBlock({ blocks: [{ id: 'a', exerciseId: 'db-row' }] }, identity, 0, blocks => blocks));
+  assert.throws(() => editPlanBlock({ blocks: [{ exerciseId: 'rdl' }] }, { exerciseId: 'bench' }, 0, blocks => blocks));
+  assert.throws(() => editPlanBlock({ blocks: [] }, identity, 0, blocks => blocks));
 });

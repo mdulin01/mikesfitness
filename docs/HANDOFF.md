@@ -12,13 +12,17 @@ Release setting: `VITE_TRAINING_TEMPLATE_EFFECTIVE_DATE` must be the actual merg
 date in Vercel Production and must remain fixed afterward. Without it, seeding
 uses the old template. No production data/settings were changed.
 
-Validation: 20 unit tests, 16 desktop/phone browser checks, lint, build, and
+Validation: 27 unit tests, 34 desktop/phone browser checks, lint, build, and
 `git diff --check` pass. The four screenshots use synthetic data. No live Firebase
 writes or deployment were performed. Vite still reports the existing large-bundle warning.
 
-Claude review is pending: the read-only Claude Code review attempt failed with
-"OAuth session expired and could not be refreshed". Run `claude auth login`
-locally, then have Claude review the branch before merge. Do not share tokens.
+Claude Code completed a read-only review after login was restored. Follow-up fixes
+cover buffered plan edits with save errors, normal working-load anchors after
+reduced weeks, the pre-release regeneration explanation, legacy bench ranges,
+day-type selection and feedback for extra workouts. Migration of an unstarted
+legacy week replaces its day-level edits; week-level notes remain. Claude's final
+static recheck found nothing left to fix in the reviewed changes. See
+`claude-review.md` for the disposition of findings and verification limits.
 
 Draft PR only. See training-template.md for behavior and verification.
 The vault source program is not replaced with an app pointer before release.

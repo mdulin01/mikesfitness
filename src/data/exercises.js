@@ -21,7 +21,7 @@ export const EXERCISES = [
   { id: 'back-extension', name: 'Back Extension', category: 'hinge', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 5, cue: 'Smooth reps; add a plate to chest when easy.' },
   { id: 'calf-raise', name: 'Standing Calf Raise', category: 'legs', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 10, cue: 'Full stretch at the bottom, pause at the top. Ankle strength = fall prevention.' },
   // ---- Push ----
-  { id: 'bench', name: 'Bench Press (Bar or DB)', category: 'push', equipment: 'barbell', repRange: [6, 10], increment: 5, cue: 'Shoulder blades pinned, feet planted, bar to mid-chest.' },
+  { id: 'bench', name: 'Bench Press (Bar or DB)', category: 'push', equipment: 'barbell', repRange: [8, 12], increment: 5, cue: 'Shoulder blades pinned, feet planted, bar to mid-chest.' },
   { id: 'incline-db-press', name: 'Incline DB Press', category: 'push', equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Shoulder-friendly pressing angle; elbows ~45°.' },
   { id: 'ohp', name: 'Overhead Press (DB)', category: 'push', equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Ribs down, press slightly back to stack over shoulders.' },
   { id: 'machine-chest-press', name: 'Machine Chest Press', category: 'push', equipment: 'machine', repRange: [10, 15], increment: 10, cue: 'Good fatigue option after free weights.' },

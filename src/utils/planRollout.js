@@ -10,6 +10,10 @@ export function validEffectiveDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null;
 }
 export const hasCompletedDay = plan => plan?.days?.some(day => day.status === 'done') === true;
+export function canUseNewTemplate(weekStart, today, effectiveDate) {
+  const release = validEffectiveDate(effectiveDate);
+  return !!release && today >= release && weekStart >= release;
+}
 
 // Called with a FRESH Firestore transaction snapshot, not a potentially stale subscription.
 // Any completed day protects the ENTIRE week, including future weeks. Past weeks
@@ -17,7 +21,7 @@ export const hasCompletedDay = plan => plan?.days?.some(day => day.status === 'd
 export function planForWrite({ existing, weekStart, today, effectiveDate, progressionFn, regenerate = false }) {
   if (hasCompletedDay(existing) || weekStart < weekStartOf(today)) return null;
   const release = validEffectiveDate(effectiveDate);
-  const useNew = release && today >= release && weekStart >= release;
+  const useNew = canUseNewTemplate(weekStart, today, release);
   if (existing && (!regenerate && (existing.templateVersion === TEMPLATE_VERSION || !useNew))) return null;
   if (existing && !useNew) return null;
   const fresh = useNew ? buildWeekFromTemplate(weekStart, progressionFn, { effectiveDate: release }) : buildLegacyWeek(weekStart, progressionFn);

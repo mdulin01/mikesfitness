@@ -3,8 +3,11 @@ import { useToast } from '../hooks/useToast';
 import { toLocalDateStr } from '../utils/dateUtils';
 import { addDays, shortDate } from '../utils/training';
 import { EXERCISES, EXERCISE_MAP, EXERCISE_CATEGORIES } from '../data/exercises';
-import { WEEK_TEMPLATE } from '../data/programTemplate';
-import { hasCompletedDay } from '../utils/planRollout';
+import { buildWeekFromTemplate, dayTemplateForType } from '../data/programTemplate';
+import { buildWeekFromTemplate as buildLegacyWeek } from '../data/legacyProgramTemplate';
+import { hasCompletedDay, canUseNewTemplate } from '../utils/planRollout';
+import PlanField from '../components/PlanField';
+import { editPlanBlock } from '../utils/planEdits';
 
 const DAY_TYPES = [
   { id: 'strength', label: '💪 Strength' },
@@ -17,7 +20,7 @@ const DAY_TYPES = [
 
 export default function PlanWeek({ training }) {
   const toast = useToast();
-  const { plans, ensureWeek, regenerateWeek, saveDay, currentWeekStart, coach, effectiveDate } = training;
+  const { plans, ensureWeek, regenerateWeek, saveDay, currentWeekStart, coach, effectiveDate, progressionFor } = training;
   const [weekOffset, setWeekOffset] = useState(0);
   const weekStart = addDays(currentWeekStart, weekOffset * 7);
   const todayStr = toLocalDateStr();
@@ -30,33 +33,43 @@ export default function PlanWeek({ training }) {
   const [expanded, setExpanded] = useState(null);
   const [picker, setPicker] = useState(null); // dayIdx when open
   const [pickerCat, setPickerCat] = useState('legs');
+  const eligible = canUseNewTemplate(weekStart, todayStr, effectiveDate);
+
+  const commitDay = async (dayIdx, updates) => {
+    try { await saveDay(weekStart, dayIdx, updates); return true; }
+    catch { toast('Could not save this edit. Reload the week if it changed, then try again.', 'error'); return false; }
+  };
 
   const updateBlock = (dayIdx, bi, field, val) => {
-    const day = plan.days[dayIdx];
-    const blocks = day.blocks.map((b, i) => i === bi ? { ...b, [field]: val } : b);
-    saveDay(weekStart, dayIdx, { blocks });
+    const expected = plan.days[dayIdx].blocks[bi];
+    return commitDay(dayIdx, day => editPlanBlock(day, expected, bi,
+      (blocks, actualIndex) => blocks.map((b, i) => i === actualIndex ? { ...b, [field]: val } : b)));
   };
   const removeBlockAt = (dayIdx, bi) => {
-    const day = plan.days[dayIdx];
-    saveDay(weekStart, dayIdx, { blocks: day.blocks.filter((_, i) => i !== bi) });
+    const expected = plan.days[dayIdx].blocks[bi];
+    commitDay(dayIdx, day => editPlanBlock(day, expected, bi,
+      (blocks, actualIndex) => blocks.filter((_, i) => i !== actualIndex)));
   };
   const addBlockTo = (dayIdx, ex) => {
-    const day = plan.days[dayIdx];
-    const nb = { exerciseId: ex.id, name: ex.name, sets: 3, repRange: ex.repRange, unit: ex.unit || 'reps', weight: null, note: null };
-    saveDay(weekStart, dayIdx, { blocks: [...(day.blocks || []), nb] });
+    const nb = { id: crypto.randomUUID(), exerciseId: ex.id, name: ex.name, sets: 3, repRange: ex.repRange, unit: ex.unit || 'reps', weight: null, note: null };
+    commitDay(dayIdx, day => ({ blocks: [...(day.blocks || []), nb] }));
     setPicker(null);
   };
   const swapExercise = (dayIdx, bi, exerciseId) => {
-    const day = plan.days[dayIdx];
+    const expected = plan.days[dayIdx].blocks[bi];
     const ex = EXERCISE_MAP[exerciseId];
-    const blocks = day.blocks.map((b, i) => i === bi ? { ...b, exerciseId, name: ex.name, repRange: ex.repRange,
-      unit: ex.unit || 'reps', weight: null, note: ex.cue, alternatives: [b.exerciseId] } : b);
-    saveDay(weekStart, dayIdx, { blocks });
+    commitDay(dayIdx, day => editPlanBlock(day, expected, bi,
+      (blocks, actualIndex) => blocks.map((b, i) => i === actualIndex ? { ...b, exerciseId, name: ex.name, repRange: ex.repRange,
+        unit: ex.unit || 'reps', weight: null, note: ex.cue, alternatives: [b.exerciseId] } : b)));
   };
   const changeDayType = (dayIdx, type) => {
-    const t = WEEK_TEMPLATE.find(x => x.type === type);
     const day = plan.days[dayIdx];
-    saveDay(weekStart, dayIdx, {
+    if (type === 'strength' && day.type === 'strength') return;
+    const templates = plan.templateVersion
+      ? buildWeekFromTemplate(weekStart, progressionFor, { effectiveDate: plan.effectiveDate })
+      : buildLegacyWeek(weekStart, progressionFor);
+    const t = dayTemplateForType(templates, type, day.date);
+    commitDay(dayIdx, {
       type,
       cardioType: t?.cardioType || null,
       optional: type === 'strength' && day.optional === true,
@@ -101,7 +114,7 @@ export default function PlanWeek({ training }) {
         const isToday = d.date === todayStr;
         const isExpanded = expanded === di;
         return (
-          <div key={di} className={`bg-slate-800 rounded-2xl overflow-hidden ${isToday ? 'ring-1 ring-blue-500/60' : ''}`}>
+          <div key={`${weekStart}:${d.id || di}`} className={`bg-slate-800 rounded-2xl overflow-hidden ${isToday ? 'ring-1 ring-blue-500/60' : ''}`}>
             <button onClick={() => setExpanded(isExpanded ? null : di)} className="w-full flex items-center gap-3 p-4 text-left">
               <span className="text-2xl">{d.status === 'done' ? '✅' : d.status === 'skipped' ? '⏭️' : d.emoji}</span>
               <div className="flex-1 min-w-0">
@@ -118,23 +131,23 @@ export default function PlanWeek({ training }) {
               <div className="px-4 pb-4 space-y-3 border-t border-slate-700/60 pt-3">
                 {d.detail && <p className="text-sm text-slate-400">{d.detail}</p>}
                 {d.status !== 'done' && <label className="flex items-center gap-2 text-xs text-slate-400">Session date
-                  <input type="date" aria-label={`Date for ${d.title}`} min={weekStart} max={addDays(weekStart, 6)} value={d.date}
-                    onChange={e => { if (e.target.value >= weekStart && e.target.value <= addDays(weekStart, 6)) saveDay(weekStart, di, { date: e.target.value, day: new Date(e.target.value + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) }); }}
+                  <PlanField type="date" required aria-label={`Date for ${d.title}`} min={weekStart} max={addDays(weekStart, 6)} value={d.date}
+                    onCommit={date => commitDay(di, { date, day: new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) })}
                     className="rounded bg-slate-900 border border-slate-700 px-2 py-1 text-slate-200" />
                 </label>}
                 {d.type === 'strength' && (
                   <div className="space-y-2">
                     {(d.blocks || []).map((b, bi) => (
-                      <div key={bi} className="flex flex-wrap items-center gap-2 text-sm bg-slate-900/50 rounded-xl px-3 py-2">
+                      <div key={`${b.id || bi}:${b.exerciseId}`} className="flex flex-wrap items-center gap-2 text-sm bg-slate-900/50 rounded-xl px-3 py-2">
                         <div className="flex-1 min-w-40">
                           <div className="text-slate-200">{b.name}</div>
                           {b.note && <div className="text-[10px] text-amber-400">{b.note}</div>}
                           {b.alternatives?.map(id => <button key={id} onClick={() => swapExercise(di, bi, id)} className="block text-xs text-blue-300 mt-1">Use {EXERCISE_MAP[id]?.name}</button>)}
                         </div>
-                        <input type="number" value={b.sets} onChange={e => updateBlock(di, bi, 'sets', Number(e.target.value) || 1)}
+                        <PlanField type="number" min="1" step="1" required value={b.sets} onCommit={value => updateBlock(di, bi, 'sets', Number(value))}
                           className="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-1 text-center text-slate-300 text-xs" title="sets" />
                         <span className="text-slate-600 text-xs">× {b.repRange?.[0]}-{b.repRange?.[1]} {b.unit}</span>
-                        <input type="number" value={b.weight ?? ''} placeholder="lb" onChange={e => updateBlock(di, bi, 'weight', e.target.value === '' ? null : Number(e.target.value))}
+                        <PlanField type="number" min="0" step="any" value={b.weight ?? ''} placeholder="lb" onCommit={value => updateBlock(di, bi, 'weight', value === '' ? null : Number(value))}
                           className="w-16 bg-slate-900 border border-slate-700 rounded px-1 py-1 text-center text-slate-300 text-xs" title="suggested weight" />
                         <button onClick={() => removeBlockAt(di, bi)} className="text-slate-600 hover:text-red-400">✕</button>
                       </div>
@@ -148,7 +161,7 @@ export default function PlanWeek({ training }) {
                       className={`px-2 py-1 rounded-lg text-[11px] ${d.type === t.id ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>{t.label}</button>
                   ))}
                   {d.status !== 'done' && (
-                    <button onClick={() => saveDay(weekStart, di, { status: d.status === 'skipped' ? 'planned' : 'skipped' })}
+                    <button onClick={() => commitDay(di, { status: d.status === 'skipped' ? 'planned' : 'skipped' })}
                       className="px-2 py-1 rounded-lg text-[11px] bg-slate-700 text-slate-400 ml-auto">
                       {d.status === 'skipped' ? 'restore' : 'skip'}
                     </button>
@@ -162,7 +175,7 @@ export default function PlanWeek({ training }) {
 
       {plan && weekOffset >= 0 && (
         <button
-          disabled={hasCompletedDay(plan)}
+          disabled={hasCompletedDay(plan) || !eligible}
           onClick={async () => { try { const changed = await regenerateWeek(weekStart); toast(changed ? 'Week regenerated with latest progression' : 'This week is protected; the saved plan was kept', changed ? 'success' : 'error'); } catch { toast('Could not regenerate this week', 'error'); } }}
           className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-2xl py-3 text-sm disabled:opacity-50">
           ⟳ Regenerate week (template + progression from your logs)
@@ -170,6 +183,7 @@ export default function PlanWeek({ training }) {
       )}
 
       {hasCompletedDay(plan) && <p className="text-xs text-slate-400">This week has a completed session. Regeneration is locked to protect the whole week.</p>}
+      {plan && !hasCompletedDay(plan) && !eligible && <p className="text-xs text-slate-400">This week uses the previous program. Regeneration is available for eligible weeks after the new program is released.</p>}
 
       {/* Program rationale */}
       <div className="bg-slate-800/60 rounded-2xl p-4 text-xs text-slate-500 leading-relaxed">

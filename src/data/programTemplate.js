@@ -10,7 +10,7 @@ const block = (exerciseId, sets, note = null, alternatives = []) => {
 };
 const strengthA = () => [
   block('goblet-squat', 3), block('rdl', 3, 'Dumbbells; practice the hinge.'),
-  block('bench', 3), block('row', 3), block('lateral-raise', 2), block('wood-chopper', 2),
+  { ...block('bench', 3), repRange: [6, 10] }, block('row', 3), block('lateral-raise', 2), block('wood-chopper', 2),
 ];
 const strengthB = (week) => [
   block(week <= 3 ? 'kb-deadlift' : 'kb-swing', 3,
@@ -60,10 +60,17 @@ export function buildWeekFromTemplate(weekStart, progressionFn, { effectiveDate 
       const technique = programWeek <= 2 && TECHNIQUE_LIFTS.has(b.exerciseId);
       const prog = progressionFn?.(b, { technique, deload }) || {};
       const guidance = technique ? 'Technique week — use a light load; focus on form.' : deload ? 'Deload — 2 sets at about 70% load.' : null;
-      return { ...b, sets: deload ? 2 : b.sets, weight: prog.weight ?? (technique && b.exerciseId === 'reverse-lunge' ? 0 : b.weight), note: [b.note, prog.note || guidance].filter(Boolean).join(' ') || null };
+      return { ...b, id: `${t.id}:${b.exerciseId}`, trainingPhase: technique ? 'technique' : deload ? 'deload' : 'normal', sets: deload ? 2 : b.sets, weight: prog.weight ?? (technique && b.exerciseId === 'reverse-lunge' ? 0 : b.weight), note: [b.note, prog.note || guidance].filter(Boolean).join(' ') || null };
     }),
     status: 'planned', sessionId: null,
   }));
   return { weekStart, days, focus: null, generatedBy: 'template', templateVersion: TEMPLATE_VERSION,
     effectiveDate, programWeek, deload, createdAt: new Date().toISOString() };
+}
+
+// The Zone 2 button means bike, even though the template's first cardio is a
+// swim. Prefer the date's A/B session, including the current week's phases.
+export function dayTemplateForType(week, type, date) {
+  const candidates = week.days.filter(day => day.type === type && (type !== 'cardio' || !day.cardioType || day.cardioType === 'bike'));
+  return candidates.find(day => day.date === date) || candidates[0];
 }

@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { toLocalDateStr } from '../utils/dateUtils';
 import {
-  computePRs, detectPRs, weekStartOf, lastPerformance, suggestNextLoad,
+  computePRs, detectPRs, weekStartOf, lastProgressionPerformance, suggestNextLoad,
 } from '../utils/training';
 import { EXERCISE_MAP } from '../data/exercises';
 import { writePlanTransaction, validEffectiveDate } from '../utils/planRollout';
@@ -73,7 +73,7 @@ export const useTraining = (user, legacyData) => {
 
   const progressionFor = useCallback((blockDef, phase) => {
     const ex = EXERCISE_MAP[blockDef.exerciseId] || { repRange: blockDef.repRange };
-    const last = lastPerformance(blockDef.exerciseId, sessions);
+    const last = lastProgressionPerformance(blockDef.exerciseId, sessions);
     return suggestNextLoad({ ...ex, repRange: blockDef.repRange || ex.repRange }, last, phase);
   }, [sessions]);
 
@@ -108,7 +108,8 @@ export const useTraining = (user, legacyData) => {
       if (!actual || actual.id !== expected.id || actual.date !== expected.date || actual.title !== expected.title) {
         throw new Error('The week changed; reload before editing this session.');
       }
-      const days = plan.days.map((d, i) => i === dayIdx ? { ...d, ...updates } : d);
+      const changes = typeof updates === 'function' ? updates(actual) : updates;
+      const days = plan.days.map((d, i) => i === dayIdx ? { ...d, ...changes } : d);
       transaction.update(ref, { days });
     });
   }, [user, plans]);

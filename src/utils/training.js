@@ -92,11 +92,11 @@ export function detectPRs(session, prMap) {
 // If badly missed, back off ~5-10%.
 export function suggestNextLoad(exercise, lastPerf, { technique = false, deload = false } = {}) {
   if (technique) return {
-    weight: exercise.id === 'reverse-lunge' ? 0 : lastPerf?.weight ? Math.round(Number(lastPerf.weight) * 0.5 / 2.5) * 2.5 : null,
+    weight: exercise.id === 'reverse-lunge' ? 0 : lastPerf?.weight ? Math.round(Number(lastPerf.weight) * (lastPerf.reducedLoad ? 1 : 0.5) / 2.5) * 2.5 : null,
     note: 'Technique week — use a light load, practice control, and leave reps in reserve.'
   };
   if (deload) return {
-    weight: lastPerf?.weight ? Math.round(Number(lastPerf.weight) * 0.7 / 2.5) * 2.5 : null,
+    weight: lastPerf?.weight ? Math.round(Number(lastPerf.weight) * (lastPerf.reducedLoad ? 1 : 0.7) / 2.5) * 2.5 : null,
     note: 'Deload — 2 sets at about 70% of your last working load; keep it easy.'
   };
   // exercise: library entry { id, lowerBody, repRange: [lo, hi], increment }
@@ -130,6 +130,17 @@ export function lastPerformance(exerciseId, sessions = []) {
     }
   }
   return null;
+}
+
+// Progression alone ignores reduced-load sessions when a normal working load
+// exists. The history/PR readers above keep their original interpretation.
+export function lastProgressionPerformance(exerciseId, sessions = []) {
+  const normal = sessions.map(session => ({ ...session, exercises: (session.exercises || [])
+    .filter(ex => !['technique', 'deload'].includes(ex.trainingPhase)) }));
+  const working = lastPerformance(exerciseId, normal);
+  if (working) return working;
+  const reduced = lastPerformance(exerciseId, sessions);
+  return reduced ? { ...reduced, reducedLoad: true } : null;
 }
 
 // ---------- Readiness ----------
