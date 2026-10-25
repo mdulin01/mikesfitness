@@ -11,7 +11,7 @@ export const fitnessPlan = {
 
   exerciseTargets: {
     cardioMinutes: 150, // AHA weekly floor; zone2Minutes is the quality slice
-    strengthDays: 3,
+    strengthDays: 2,
     zone2Minutes: 90,
     mobilityMinutes: 70, // 10 min × 7 days
     stepsPerDay: 10000,

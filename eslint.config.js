@@ -26,4 +26,6 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  { files: ['functions/**/*.js'], languageOptions: { sourceType: 'commonjs', globals: globals.node } },
+  { files: ['tests/**/*.js'], languageOptions: { globals: globals.node } },
 ])

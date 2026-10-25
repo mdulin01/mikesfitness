@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useToast } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { toLocalDateStr } from '../utils/dateUtils';
 import { readinessFrom, shortDate, epleyE1RM, lastPerformance } from '../utils/training';
 import { EXERCISES, EXERCISE_MAP, EXERCISE_CATEGORIES, MOBILITY_ROUTINE } from '../data/exercises';
@@ -23,8 +23,12 @@ export default function Train({ training, dailyMetricsByDate, data }) {
   useEffect(() => { ensureWeek(currentWeekStart); }, [ensureWeek, currentWeekStart]);
 
   const weekPlan = plans[currentWeekStart];
-  const todayIdx = weekPlan?.days?.findIndex(d => d.date === todayStr) ?? -1;
-  const todayPlan = todayIdx >= 0 ? weekPlan.days[todayIdx] : null;
+  const [selectedPlanDay, setSelectedPlanDay] = useState(null);
+  const todayEntries = (weekPlan?.days || []).map((day, index) => ({ day, index })).filter(({ day }) => day.date === todayStr);
+  const selected = todayEntries.find(({ index }) => index === selectedPlanDay)
+    || todayEntries.find(({ day }) => day.status !== 'done' && day.status !== 'skipped') || todayEntries[0];
+  const todayIdx = selected?.index ?? -1;
+  const todayPlan = selected?.day || null;
 
   const readiness = useMemo(() => readinessFrom(dailyMetricsByDate, todayStr), [dailyMetricsByDate, todayStr]);
 
@@ -44,15 +48,15 @@ export default function Train({ training, dailyMetricsByDate, data }) {
       const raw = localStorage.getItem(draftKey(todayStr));
       if (raw) {
         const d = JSON.parse(raw);
-        if (d.mode) { setMode(d.mode); setWork(d.work); setCardio(d.cardio || cardio); setMobilityDone(d.mobilityDone || {}); setEffort(d.effort ?? 2); setNotes(d.notes || ''); setStartedAt(d.startedAt); }
+        if (d.mode) { setMode(d.mode); setSelectedPlanDay(d.selectedPlanDay ?? null); setWork(d.work); setCardio(d.cardio || cardio); setMobilityDone(d.mobilityDone || {}); setEffort(d.effort ?? 2); setNotes(d.notes || ''); setStartedAt(d.startedAt); }
       }
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayStr]);
   useEffect(() => {
     if (!mode) return;
-    try { localStorage.setItem(draftKey(todayStr), JSON.stringify({ mode, work, cardio, mobilityDone, effort, notes, startedAt })); } catch { /* ignore */ }
-  }, [mode, work, cardio, mobilityDone, effort, notes, startedAt, todayStr]);
+    try { localStorage.setItem(draftKey(todayStr), JSON.stringify({ mode, work, cardio, mobilityDone, effort, notes, startedAt, selectedPlanDay: todayIdx })); } catch { /* ignore */ }
+  }, [mode, work, cardio, mobilityDone, effort, notes, startedAt, todayStr, todayIdx]);
   const clearDraft = () => { try { localStorage.removeItem(draftKey(todayStr)); } catch { /* ignore */ } };
 
   const startStrength = (blocks) => {
@@ -75,7 +79,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
     if (!todayPlan) return startCardio();
     if (todayPlan.type === 'strength') return startStrength(todayPlan.blocks);
     if (todayPlan.type === 'mobility') return startMobility();
-    return startCardio(todayPlan.type === 'intervals' ? 'bike' : todayPlan.type === 'long' ? 'bike' : 'bike');
+    return startCardio(todayPlan.cardioType || 'bike');
   };
 
   const setSetVal = (bi, si, field, val) => {
@@ -124,7 +128,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
     let session;
     if (mode === 'strength') {
       const exercises = work.blocks
-        .map(b => ({ id: b.exerciseId, name: b.name, sets: b.sets.filter(s => s.done && Number(s.reps) > 0).map(s => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, done: true })) }))
+        .map(b => ({ id: b.exerciseId, name: b.name, plannedSets: b.sets.length, sets: b.sets.filter(s => s.done && Number(s.reps) > 0).map(s => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, done: true })) }))
         .filter(e => e.sets.length > 0);
       if (exercises.length === 0) { toast('Nothing logged yet — check off at least one set', 'error'); return; }
       session = { date: todayStr, type: 'strength', title: todayPlan?.type === 'strength' ? todayPlan.title : 'Strength', exercises, durationMin, effort: effort + 1, notes };
@@ -139,14 +143,16 @@ export default function Train({ training, dailyMetricsByDate, data }) {
       const doneItems = MOBILITY_ROUTINE.filter(m => mobilityDone[m.id]).map(m => m.name);
       session = { date: todayStr, type: 'mobility', title: 'Mobility & recovery', durationMin: durationMin || 15, items: doneItems, effort: 1, notes };
     }
-    if (todayPlan && ((mode === 'strength' && todayPlan.type === 'strength') || (mode !== 'strength' && todayPlan.type !== 'strength'))) {
+    if (todayPlan && ((mode === 'strength' && todayPlan.type === 'strength') || (mode !== 'strength' && todayPlan.type !== 'strength' && (!todayPlan.cardioType || session.type === todayPlan.cardioType)))) {
       session.planWeek = currentWeekStart;
       session.planDay = todayIdx;
+      session.planDayId = todayPlan.id || null;
+      session.optional = todayPlan.optional === true;
     }
     try {
       const { prs } = await logSession(session);
       clearDraft();
-      setMode(null); setWork(null); setNotes(''); setEffort(2); setMobilityDone({});
+      setMode(null); setSelectedPlanDay(null); setWork(null); setNotes(''); setEffort(2); setMobilityDone({});
       setCardio({ type: 'bike', durationMin: '', distance: '', avgHR: '', effort: 2, notes: '' });
       if (prs?.length) toast(`🎉 New PR! ${prs.map(p => `${p.name}: ${p.weight}×${p.reps} (e1RM ${p.e1RM})`).join(' · ')}`, 'success');
       else toast('Session saved 💪', 'success');
@@ -176,9 +182,16 @@ export default function Train({ training, dailyMetricsByDate, data }) {
       {!mode && (
         <div className="bg-slate-800 rounded-2xl p-5">
           <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Today · {shortDate(todayStr)}</div>
+          {todayEntries.length > 1 && <label className="block text-xs text-slate-400 mb-3">Today's planned sessions
+            <select aria-label="Today's planned sessions" value={todayIdx} onChange={e => setSelectedPlanDay(Number(e.target.value))}
+              className="block w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-200 mt-1">
+              {todayEntries.map(({ day, index }) => <option key={day.id || index} value={index}>{day.status === 'done' ? '✓ ' : ''}{day.title}</option>)}
+            </select>
+          </label>}
           {todayPlan ? (
             <>
               <div className="text-xl font-bold text-slate-100">{todayPlan.emoji} {todayPlan.title}</div>
+              {todayPlan.optional && <p className="text-xs text-emerald-300 mt-1">Optional session — skipping will not count as missed.</p>}
               {todayPlan.detail && <p className="text-sm text-slate-400 mt-1">{todayPlan.detail}</p>}
               {todayPlan.blocks?.length > 0 && (
                 <ul className="mt-3 space-y-1">
@@ -196,7 +209,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
                 <div className="mt-4 flex gap-2 flex-wrap">
                   <button onClick={startToday} className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl">▶ Start session</button>
                   <button onClick={() => saveDay(currentWeekStart, todayIdx, { status: todayPlan.status === 'skipped' ? 'planned' : 'skipped' })} className="text-slate-400 hover:text-slate-200 px-3 py-2.5 text-sm">
-                    {todayPlan.status === 'skipped' ? 'Un-skip' : 'Skip today'}
+                    {todayPlan.status === 'skipped' ? 'Un-skip' : 'Skip session'}
                   </button>
                 </div>
               )}
@@ -254,7 +267,7 @@ export default function Train({ training, dailyMetricsByDate, data }) {
             );
           })}
           <button onClick={() => setShowPicker(true)} className="w-full bg-slate-800 hover:bg-slate-700 border border-dashed border-slate-600 text-slate-400 rounded-2xl py-3">+ Add exercise</button>
-          <FinishBar effort={effort} setEffort={setEffort} notes={notes} setNotes={setNotes} onFinish={finish} onCancel={() => { clearDraft(); setMode(null); setWork(null); }} />
+          <FinishBar effort={effort} setEffort={setEffort} notes={notes} setNotes={setNotes} onFinish={finish} onCancel={() => { clearDraft(); setMode(null); setSelectedPlanDay(null); setWork(null); }} />
         </div>
       )}
 

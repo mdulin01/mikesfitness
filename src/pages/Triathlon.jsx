@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { activeTriPlan } from '../utils/triathlon';
+import { useState, useMemo } from 'react';
 import { toLocalDateStr } from '../utils/dateUtils';
 import { wrightsvilleTriPlan } from '../data/triathlonPlan';
 
@@ -107,18 +109,10 @@ function WorkoutRow({ workout, type, onToggle }) {
   );
 }
 
-export default function Triathlon({ sharedFitness, toggleSharedWorkout, saveTriReflection, triEventId, ...rest }) {
-  const tri = sharedFitness?.events?.find(e => e.id === triEventId);
-  const plan = sharedFitness?.trainingPlans?.[triEventId] || wrightsvilleTriPlan;
-  const todayStr = toLocalDateStr();
-
+function RacePlan({ sharedFitness, toggleSharedWorkout, saveTriReflection, triEventId, tri, plan, todayStr, archived = false }) {
   const currentWeekIdx = useMemo(() => plan.findIndex(w => w.startDate <= todayStr && w.endDate >= todayStr), [plan, todayStr]);
-  const [expandedWeek, setExpandedWeek] = useState(currentWeekIdx >= 0 ? plan[currentWeekIdx]?.id : null);
-
-  // Re-anchor expansion to current week if it changes
-  useEffect(() => {
-    if (currentWeekIdx >= 0 && !expandedWeek) setExpandedWeek(plan[currentWeekIdx]?.id);
-  }, [currentWeekIdx, plan, expandedWeek]);
+  const [expandedChoice, setExpandedWeek] = useState(undefined);
+  const expandedWeek = expandedChoice === undefined ? plan[currentWeekIdx]?.id : expandedChoice;
 
   // Race countdown
   const raceDate = tri?.date ? new Date(tri.date + 'T12:00:00') : null;
@@ -172,12 +166,12 @@ export default function Triathlon({ sharedFitness, toggleSharedWorkout, saveTriR
       <div className={`rounded-2xl bg-gradient-to-br ${tri?.color || 'from-blue-400 to-cyan-500'} p-5`}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-white/80 text-xs uppercase tracking-widest">Training For</div>
+            <div className="text-white/80 text-xs uppercase tracking-widest">{archived ? 'Race history' : 'Training For'}</div>
             <h1 className="text-2xl md:text-3xl font-bold text-white">{tri?.name || 'Wrightsville Beach Sprint Tri'}</h1>
             <p className="text-white/80 text-sm">📍 {tri?.location || 'Wrightsville Beach, NC'} · {tri?.date ? new Date(tri.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}</p>
             <div className="text-white/70 text-xs mt-1">🏊 {tri?.swim || '1500m ocean'} · 🚴 {tri?.bike || '~12 mi'} · 🏃 {tri?.run || '5K'}</div>
           </div>
-          {daysToRace != null && (
+          {!archived && daysToRace != null && daysToRace >= 0 && (
             <div className="text-right text-white">
               <div className="text-3xl font-bold leading-none">{daysToRace > 0 ? daysToRace : 0}</div>
               <div className="text-[10px] uppercase tracking-widest text-white/80">days to go</div>
@@ -292,4 +286,57 @@ export default function Triathlon({ sharedFitness, toggleSharedWorkout, saveTriR
       </div>
     </div>
   );
+}
+
+
+function NextRaceForm({ nextRace, onSave, today }) {
+  const [race, setRace] = useState(nextRace || { name: '', date: '', distance: '' });
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async event => {
+    event.preventDefault();
+    setSaving(true); setMessage('');
+    try { await onSave(race); setMessage('Next race saved'); }
+    catch { setMessage('Could not save. Check the fields and try again.'); }
+    finally { setSaving(false); }
+  };
+  return <form onSubmit={save} className="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+    <div><h2 className="text-lg font-semibold text-white">Your next race</h2><p className="text-sm text-slate-400 mt-1">Set a target when you are ready. Your past plan stays in the archive.</p></div>
+    <div className="grid gap-3 md:grid-cols-3">
+      {[['name', 'Race name', 'text', 'e.g. Spring Sprint Tri'], ['date', 'Race date', 'date', ''], ['distance', 'Distance', 'text', 'e.g. Sprint or Olympic']].map(([field, label, type, placeholder]) =>
+        <label key={field} className="block text-sm text-slate-300">{label}<input required type={type} min={field === 'date' ? today : undefined} maxLength={field === 'name' ? 120 : field === 'distance' ? 80 : undefined}
+          value={race[field]} placeholder={placeholder} onChange={event => setRace(value => ({ ...value, [field]: event.target.value }))}
+          className="mt-1 block w-full min-w-0 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-white" /></label>)}
+    </div>
+    <button disabled={saving || !onSave} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl px-4 py-2.5">{saving ? 'Saving…' : 'Save next race'}</button>
+    {(message || nextRace) && <p role="status" className="text-sm text-slate-300">{message || `Saved target: ${nextRace.name} · ${nextRace.date} · ${nextRace.distance}`}</p>}
+  </form>;
+}
+
+export default function Triathlon({ sharedFitness, toggleSharedWorkout, saveTriReflection, triEventId = 'tri-wrightsville-2026', training }) {
+  const today = toLocalDateStr();
+  const active = activeTriPlan(sharedFitness, triEventId, wrightsvilleTriPlan, today);
+  if (active) return <RacePlan sharedFitness={sharedFitness} toggleSharedWorkout={toggleSharedWorkout} saveTriReflection={saveTriReflection}
+    triEventId={active.event.id} tri={active.event} plan={active.plan} todayStr={today} />;
+  const archive = sharedFitness?.trainingPlans?.[triEventId] || wrightsvilleTriPlan;
+  const race = sharedFitness?.events?.find(event => event.id === triEventId);
+  return <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-5 pb-24">
+    <section className="rounded-2xl bg-gradient-to-br from-teal-800 to-slate-800 border border-teal-600/30 p-6">
+      <p className="text-xs text-teal-200 uppercase tracking-widest">Between race plans</p>
+      <h1 className="text-3xl font-bold text-white mt-2">Off-season base</h1>
+      <p className="text-sm text-teal-100/80 mt-3 max-w-xl">Keep a steady rhythm in the pool, on the bike and on your feet. Two strength sessions anchor the week; a third is optional.</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+        {[['🏊', 'Swim', '2× / week'], ['🚴', 'Bike', '1× / week'], ['🏃', 'Run', '1× / week'], ['💪', 'Strength', '2× / week']].map(([emoji, name, frequency]) =>
+          <div key={name} className="rounded-xl bg-slate-950/30 p-3"><div className="text-lg">{emoji} {name}</div><div className="text-sm text-teal-200 mt-1">{frequency}</div></div>)}
+      </div>
+      <p className="text-xs text-teal-100/70 mt-4">Plus a rotating long bike/run day and mobility / recovery.</p>
+      <Link to="/plan" className="inline-block bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-semibold px-4 py-2.5 mt-5">Open weekly plan →</Link>
+    </section>
+    <NextRaceForm key={JSON.stringify(training?.nextRace || null)} nextRace={training?.nextRace} onSave={training?.saveNextRace} today={today} />
+    <details className="rounded-2xl border border-slate-700 bg-slate-800/40">
+      <summary className="cursor-pointer p-4 text-slate-300 font-medium">Wrightsville plan & history</summary>
+      <RacePlan archived sharedFitness={sharedFitness} toggleSharedWorkout={toggleSharedWorkout} saveTriReflection={saveTriReflection}
+        triEventId={triEventId} tri={race} plan={archive} todayStr={today} />
+    </details>
+  </div>;
 }

@@ -1,4 +1,4 @@
-export default function TrendChart({ data, goalValue, color, label, unit, height = 200 }) {
+export default function TrendChart({ data, goalValue, color, unit, height = 200 }) {
   if (!data || data.length < 2) {
     return (
       <div className="text-center py-8 text-slate-500 text-sm">

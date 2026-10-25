@@ -1,3 +1,4 @@
 {
+  "git": { "deploymentEnabled": { "codex/two-day-training": false } },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

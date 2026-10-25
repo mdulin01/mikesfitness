@@ -82,7 +82,7 @@ export default function App() {
             <Route path="/train" element={<Train {...healthData} training={training} />} />
             <Route path="/plan" element={<PlanWeek training={training} />} />
             <Route path="/progress" element={<Progress {...healthData} training={training} />} />
-            <Route path="/triathlon" element={<Triathlon {...healthData} />} />
+            <Route path="/triathlon" element={<Triathlon {...healthData} training={training} />} />
             {/* legacy paths */}
             <Route path="/training" element={<Navigate to="/train" replace />} />
             <Route path="/nutrition" element={<Navigate to="/" replace />} />

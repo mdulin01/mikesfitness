@@ -2,28 +2,33 @@
 // building strength for longevity. `repRange` drives double progression;
 // `increment` is the load jump when the top of the range is reached on all sets.
 export const EXERCISES = [
+  { id: 'lateral-raise', name: 'DB Lateral Raise', category: 'push', equipment: 'dumbbell', repRange: [12, 15], unit: 'reps', increment: 2.5, cue: 'Light dumbbells, controlled lift and lowering.' },
+  { id: 'wood-chopper', name: 'Cable Wood Chopper', category: 'core', equipment: 'cable', repRange: [10, 10], unit: 'reps/side', increment: 5, cue: 'Ten controlled reps on each side.' },
+  { id: 'kb-deadlift', name: 'Kettlebell Deadlift', category: 'hinge', lowerBody: true, equipment: 'kettlebell', repRange: [10, 15], unit: 'reps', increment: 5, cue: 'Practice the hinge before progressing to swings.' },
+  { id: 'kb-swing', name: 'Kettlebell Swing', category: 'hinge', lowerBody: true, equipment: 'kettlebell', repRange: [15, 20], unit: 'reps', increment: 5, cue: 'Use a controlled hip hinge; return to deadlifts if form is uncertain.' },
+  { id: 'reverse-lunge', name: 'DB Reverse Lunge', category: 'legs', lowerBody: true, equipment: 'dumbbell', repRange: [8, 10], unit: 'reps/leg', increment: 5, cue: 'Start with bodyweight, step back and control each rep.' },
   // ---- Squat / knee dominant ----
-  { id: 'goblet-squat', name: 'Goblet Squat', category: 'legs', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 10, cue: 'Chest tall, sit between the hips, full foot pressure.' },
+  { id: 'goblet-squat', name: 'Goblet Squat', category: 'legs', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Chest tall, sit between the hips, full foot pressure.' },
   { id: 'leg-press', name: 'Leg Press', category: 'legs', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 20, cue: 'Knees track over toes; don\'t lock out hard.' },
   { id: 'squat', name: 'Barbell Back Squat', category: 'legs', lowerBody: true, equipment: 'barbell', repRange: [6, 10], increment: 10, cue: 'Brace, break at hips and knees together.' },
   { id: 'split-squat', name: 'DB Split Squat', category: 'legs', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Per leg. Rear-foot flat; drop the back knee straight down.' },
   { id: 'stepup', name: 'DB Step-Up', category: 'legs', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Per leg. Drive through the top foot, control the descent — great for bone density.' },
   { id: 'leg-extension', name: 'Leg Extension', category: 'legs', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 10, cue: 'Squeeze at the top; protects the knees when kept smooth.' },
   // ---- Hinge / posterior chain ----
-  { id: 'rdl', name: 'Romanian Deadlift (DB or Bar)', category: 'hinge', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 10, cue: 'Soft knees, push hips back, flat back, feel the hamstrings.' },
+  { id: 'rdl', name: 'Romanian Deadlift (DB or Bar)', category: 'hinge', lowerBody: true, equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Soft knees, push hips back, flat back, feel the hamstrings.' },
   { id: 'trapbar-deadlift', name: 'Trap-Bar Deadlift', category: 'hinge', lowerBody: true, equipment: 'barbell', repRange: [6, 10], increment: 10, cue: 'Easier on the low back than straight bar. Stand up tall, don\'t yank.' },
   { id: 'hip-thrust', name: 'Hip Thrust / Glute Bridge', category: 'hinge', lowerBody: true, equipment: 'barbell', repRange: [10, 15], increment: 10, cue: 'Chin tucked, full hip extension, 1-sec squeeze.' },
   { id: 'back-extension', name: 'Back Extension', category: 'hinge', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 5, cue: 'Smooth reps; add a plate to chest when easy.' },
   { id: 'calf-raise', name: 'Standing Calf Raise', category: 'legs', lowerBody: true, equipment: 'machine', repRange: [10, 15], increment: 10, cue: 'Full stretch at the bottom, pause at the top. Ankle strength = fall prevention.' },
   // ---- Push ----
-  { id: 'bench', name: 'Bench Press (Bar or DB)', category: 'push', equipment: 'barbell', repRange: [8, 12], increment: 5, cue: 'Shoulder blades pinned, feet planted, bar to mid-chest.' },
+  { id: 'bench', name: 'Bench Press (Bar or DB)', category: 'push', equipment: 'barbell', repRange: [6, 10], increment: 5, cue: 'Shoulder blades pinned, feet planted, bar to mid-chest.' },
   { id: 'incline-db-press', name: 'Incline DB Press', category: 'push', equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Shoulder-friendly pressing angle; elbows ~45°.' },
   { id: 'ohp', name: 'Overhead Press (DB)', category: 'push', equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Ribs down, press slightly back to stack over shoulders.' },
   { id: 'machine-chest-press', name: 'Machine Chest Press', category: 'push', equipment: 'machine', repRange: [10, 15], increment: 10, cue: 'Good fatigue option after free weights.' },
   { id: 'pushup', name: 'Push-Up', category: 'push', equipment: 'bodyweight', repRange: [10, 20], increment: 0, cue: 'Body in one line; elevate hands to scale easier.' },
   // ---- Pull ----
-  { id: 'latpull', name: 'Lat Pulldown', category: 'pull', equipment: 'machine', repRange: [8, 12], increment: 10, cue: 'Pull elbows to ribs, chest up, no swinging.' },
-  { id: 'row', name: 'Seated Cable Row', category: 'pull', equipment: 'machine', repRange: [8, 12], increment: 10, cue: 'Squeeze shoulder blades; posture muscle #1.' },
+  { id: 'latpull', name: 'Lat Pulldown', category: 'pull', equipment: 'machine', repRange: [8, 12], increment: 5, cue: 'Pull elbows to ribs, chest up, no swinging.' },
+  { id: 'row', name: 'Seated Cable Row', category: 'pull', equipment: 'machine', repRange: [8, 12], increment: 5, cue: 'Squeeze shoulder blades; posture muscle #1.' },
   { id: 'db-row', name: 'One-Arm DB Row', category: 'pull', equipment: 'dumbbell', repRange: [8, 12], increment: 5, cue: 'Per arm. Flat back, pull to hip pocket.' },
   { id: 'assisted-pullup', name: 'Pull-Up (Assisted OK)', category: 'pull', equipment: 'machine', repRange: [6, 10], increment: 5, cue: 'Reduce assistance over time — a pull-up at 60 is a superpower.' },
   { id: 'face-pull', name: 'Face Pull', category: 'pull', equipment: 'cable', repRange: [12, 15], increment: 5, cue: 'Rope to eyebrows, elbows high — shoulder health staple.' },
