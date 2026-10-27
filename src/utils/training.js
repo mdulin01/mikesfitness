@@ -1,5 +1,5 @@
 // Pure helpers for the training engine: PRs, progression, readiness, streaks.
-import { toLocalDateStr, offsetDateStr } from './dateUtils';
+import { toLocalDateStr, offsetDateStr } from './dateUtils.js';
 
 // Estimated 1-rep max (Epley). reps===1 returns the weight itself.
 export const epleyE1RM = (weight, reps) => {
@@ -88,9 +88,17 @@ export function detectPRs(session, prMap) {
 
 // ---------- Progression ----------
 // Double progression: work within the rep range at a fixed weight; once every
-// planned set hits the TOP of the range, add load (5 lb upper / 10 lb lower).
+// planned set hits the TOP of the range, add the configured load increment (5 lb by default).
 // If badly missed, back off ~5-10%.
-export function suggestNextLoad(exercise, lastPerf) {
+export function suggestNextLoad(exercise, lastPerf, { technique = false, deload = false } = {}) {
+  if (technique) return {
+    weight: exercise.id === 'reverse-lunge' ? 0 : lastPerf?.weight ? Math.round(Number(lastPerf.weight) * (lastPerf.reducedLoad ? 1 : 0.5) / 2.5) * 2.5 : null,
+    note: 'Technique week — use a light load, practice control, and leave reps in reserve.'
+  };
+  if (deload) return {
+    weight: lastPerf?.weight ? Math.round(Number(lastPerf.weight) * (lastPerf.reducedLoad ? 1 : 0.7) / 2.5) * 2.5 : null,
+    note: 'Deload — 2 sets at about 70% of your last working load; keep it easy.'
+  };
   // exercise: library entry { id, lowerBody, repRange: [lo, hi], increment }
   // lastPerf: { weight, sets: [{reps, done}] } from most recent session containing it
   if (!lastPerf || !lastPerf.weight) return { weight: null, note: 'Pick a comfortable starting weight — you should have 2-3 reps left in the tank.' };
@@ -99,7 +107,8 @@ export function suggestNextLoad(exercise, lastPerf) {
   if (doneSets.length === 0) return { weight: lastPerf.weight, note: null };
   const allAtTop = doneSets.length >= (lastPerf.plannedSets || doneSets.length) && doneSets.every(s => Number(s.reps) >= hi);
   const badlyMissed = doneSets.filter(s => Number(s.reps) < (exercise.repRange?.[0] || 8) - 1).length >= 2;
-  const inc = exercise.increment || (exercise.lowerBody ? 10 : 5);
+  const inc = exercise.increment ?? 5;
+  if (inc === 0) return { weight: lastPerf.weight, note: 'Build controlled reps or time within the range.' };
   if (allAtTop) return { weight: Number(lastPerf.weight) + inc, note: `⬆ +${inc} lb — you hit ${hi} reps on every set last time` };
   if (badlyMissed) {
     const down = Math.max(5, Math.round(Number(lastPerf.weight) * 0.07 / 5) * 5);
@@ -117,10 +126,21 @@ export function lastPerformance(exerciseId, sessions = []) {
       if (sets.length === 0) continue;
       // use the heaviest working weight of that day
       const weight = Math.max(...sets.map(s => Number(s.weight) || 0));
-      return { date: sess.date, weight, sets, plannedSets: (e.sets || []).length };
+      return { date: sess.date, weight, sets, plannedSets: e.plannedSets ?? (e.sets || []).length };
     }
   }
   return null;
+}
+
+// Progression alone ignores reduced-load sessions when a normal working load
+// exists. The history/PR readers above keep their original interpretation.
+export function lastProgressionPerformance(exerciseId, sessions = []) {
+  const normal = sessions.map(session => ({ ...session, exercises: (session.exercises || [])
+    .filter(ex => !['technique', 'deload'].includes(ex.trainingPhase)) }));
+  const working = lastPerformance(exerciseId, normal);
+  if (working) return working;
+  const reduced = lastPerformance(exerciseId, sessions);
+  return reduced ? { ...reduced, reducedLoad: true } : null;
 }
 
 // ---------- Readiness ----------
@@ -167,7 +187,7 @@ const STRENGTH_TYPES = new Set(['strength']);
 const ENDURANCE_TYPES = new Set(['run', 'bike', 'swim', 'row', 'walk', 'hike', 'cardio', 'intervals']);
 const MOBILITY_TYPES = new Set(['mobility', 'yoga', 'stretch']);
 
-export function weeklyPillarSummary(sessions = [], dates = []) {
+export function weeklyPillarSummary(sessions = [], dates = [], plannedDays = [], todayStr = toLocalDateStr()) {
   const inWeek = sessions.filter(s => dates.includes(s.date));
   const sum = { strengthMin: 0, strengthSessions: 0, strengthSets: 0, enduranceMin: 0, zone2Min: 0, mobilityMin: 0, sessions: inWeek.length };
   for (const s of inWeek) {
@@ -183,6 +203,9 @@ export function weeklyPillarSummary(sessions = [], dates = []) {
       sum.mobilityMin += mins;
     }
   }
+  const required = plannedDays.filter(d => dates.includes(d.date) && !d.optional && d.type !== 'rest');
+  sum.requiredStrengthSessions = plannedDays.length ? required.filter(d => d.type === 'strength').length : 2;
+  sum.missedSessions = required.filter(d => d.date < todayStr && d.status !== 'done').length;
   return sum;
 }
 
@@ -190,12 +213,21 @@ export function weeklyPillarSummary(sessions = [], dates = []) {
 // moveStreak: consecutive days (ending today or yesterday) with a logged
 // session OR >= 7500 steps. weekStreak: consecutive weeks (ending this or
 // last week) with >= 4 sessions logged.
-export function computeStreaks(sessions = [], dailyMetricsByDate = {}, todayStr = toLocalDateStr()) {
+export function computeStreaks(sessions = [], dailyMetricsByDate = {}, todayStr = toLocalDateStr(), plannedDays = []) {
   const sessionDates = new Set(sessions.map(s => s.date));
   const active = (d) => sessionDates.has(d) || (dailyMetricsByDate[d]?.activity?.steps || 0) >= 7500;
   let moveStreak = 0;
   let cursor = active(todayStr) ? todayStr : addDays(todayStr, -1);
-  while (active(cursor) && moveStreak < 400) { moveStreak++; cursor = addDays(cursor, -1); }
+  // Optional-only days are neutral: skipping one neither breaks nor adds to a streak.
+  const optionalOnly = (date) => {
+    const days = plannedDays.filter(d => d.date === date);
+    return days.length > 0 && days.every(d => d.optional);
+  };
+  for (let scanned = 0; scanned < 400; scanned++) {
+    if (active(cursor)) moveStreak++;
+    else if (!optionalOnly(cursor)) break;
+    cursor = addDays(cursor, -1);
+  }
 
   const byWeek = {};
   for (const s of sessions) { const w = weekStartOf(s.date); byWeek[w] = (byWeek[w] || 0) + 1; }

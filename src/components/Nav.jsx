@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SECTIONS } from '../constants';
 
-export default function Nav({ user, onLogout }) {
+export default function Nav({ onLogout }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState(null);

@@ -2,98 +2,94 @@
 
 ## Overview
 
-Personal health and fitness tracker for Mike. Dashboard with health metrics, workout tracking with weekly checkoffs, medical appointment management, lab results, medications, and a 10-year health plan reference. Shares fitness data with mikeandadam via the same Firebase project.
+Mike's personal fitness and performance app: weekly training plans, set-by-set logging,
+progression, PRs, readiness, Apple Health metrics, and triathlon planning. Mike-only
+training belongs here; mikeandadam remains the home for joint plans.
 
-## Key URLs & Resources
+Read this file, then the newest entry in docs/HANDOFF.md. The training rollout and
+verification instructions are in [docs/training-template.md](docs/training-template.md).
 
-| Resource | URL |
-|----------|-----|
-| **Live Site** | https://mikesfitness.app (not yet deployed) |
-| **GitHub** | TBD (repo not yet created) |
+Mike's cross-project notes are in his vault at `~/Dropbox (Personal)/Vault`. When asked
+about priorities or what Mike decided, read `01-Week/` (newest note) and `05-Health/NOW.md`
+there. This repo may hold Mike's own health data; that is appropriate here. Use synthetic
+data in tests and screenshots, and never copy his health data into unrelated repos.
 
-## Technical Stack
+## URLs and stack
 
-- **Frontend:** React 19 + Vite + Tailwind CSS 4
-- **Backend/Database:** Firebase (Firestore, Authentication) — shared project with mikeandadam
-- **Deployment:** Vercel (planned)
-- **Version Control:** GitHub (mdulin01, repo TBD)
+- Live site: https://mikesfitness.vercel.app
+- GitHub: https://github.com/mdulin01/mikesfitness
+- React 19, Vite 8, Tailwind 4, Firebase Auth and Firestore; deployed on Vercel.
+- Firebase project: `trip-planner-5cc84` (shared with mikeandadam).
+- Storage bucket: `gs://trip-planner-5cc84.firebasestorage.app`.
+- Google sign-in is restricted to Mike's authorized account.
+- Never commit credentials or environment files. Never ask for secret values; point
+  Mike to the relevant Vercel or Firebase settings.
 
-## Infrastructure
+## Project structure
 
-- **Firebase Project ID:** trip-planner-5cc84 (shared with mikeandadam)
-- **Firebase Storage Bucket:** `gs://trip-planner-5cc84.firebasestorage.app`
-- **Firestore Collection:** `mikesfitness` (health-specific data)
-- **Auth:** Google sign-in, restricted to mdulin@gmail.com
-
-## Project Structure
-
-```
-mikesfitness/
-├── src/
-│   ├── App.jsx                  # Main app with auth + section routing
-│   ├── main.jsx                 # Entry point
-│   ├── index.css                # Tailwind + global styles
-│   ├── constants.js             # Sections, appointment types, lab categories
-│   ├── firebase-config.js       # Firebase init (shared project)
-│   ├── components/
-│   │   ├── LoginScreen.jsx      # Google auth login
-│   │   └── Nav.jsx              # Desktop top nav + mobile bottom nav
-│   ├── hooks/
-│   │   ├── useAuth.js           # Auth state + Google sign-in
-│   │   └── useHealthData.js     # Firestore CRUD for all health data
-│   ├── pages/
-│   │   ├── Dashboard.jsx        # Daily checklist, stats, weekly overview, upcoming appointments
-│   │   ├── Training.jsx         # Weekly workout schedule, workout details, cardio plans
-│   │   ├── Health.jsx           # Weight tracking, lab results, medications, sleep
-│   │   ├── Appointments.jsx     # Medical appointments (scheduled, needs-scheduling, past)
-│   │   └── Plan.jsx             # 10-year health plan reference
-│   └── data/
-│       ├── healthPlan.js        # 10-year plan: risks, meds, labs, goals
-│       └── exercisePlan.js      # Weekly schedule, workouts A/B, cardio, targets
-├── index.html
-├── package.json
-├── vite.config.js
-└── vercel.json
+```text
+src/
+  App.jsx                    Authentication and page routing
+  pages/
+    Dashboard.jsx            Readiness, today's sessions, weekly totals, streaks, PRs
+    Train.jsx                Strength/cardio/mobility loggers and in-progress drafts
+    PlanWeek.jsx             Editable weekly plans, exercise swaps, protected regeneration
+    Progress.jsx             Exercise trends, pillar minutes, body composition
+    Triathlon.jsx            Current tri plan, off-season base, next race, history
+  data/
+    programTemplate.js       Two required strength sessions + optional third and endurance
+    legacyProgramTemplate.js Pre-rollout template for earlier weeks
+    exercises.js             Stable exercise IDs, rep ranges, units and increments
+    triathlonPlan.js          Wrightsville plan (preserved)
+  hooks/
+    useTraining.js           Plan/session transactions, progression, next-race settings
+    useHealthData.js         Existing health, metrics and shared fitness subscriptions
+  utils/
+    training.js              Pure history, progression, summaries and streaks
+    planRollout.js            Merge-date gate and transaction write policy
+    triathlon.js              Active-plan selection and next-race validation
+    dateUtils.js             Local-calendar helpers
+functions/                   Existing Apple Health ingest (separate deployment)
+tests/                       Synthetic unit tests and isolated browser fixture
 ```
 
-## Key Features
+## Data and safety
 
-- **Dashboard**: Daily checklist (workout, steps, mobility, water, sleep), weekly workout progress, upcoming appointments, race calendar
-- **Training**: Weekly exercise schedule with day-by-day checkoffs, Workout A/B details, Zone 2 cardio and VO2 Max interval plans, race countdowns (half marathon, triathlon)
-- **Health**: Weight/waist tracking, lab results with history, medication stack reference, sleep goals
-- **Appointments**: Upcoming scheduled, needs-scheduling alerts (cardiology, dentist, dermatology), past appointments
-- **10-Year Plan**: Full reference of the prevention plan (risks, meds, labs, exercise, diet, weight, sleep, outcomes)
+- `fitnessPlans/{weekStart}`: saved weekly plans. Multiple sessions can share a date;
+  array indexes and stable session IDs link logs to the correct session.
+- `fitnessSessions`: logged strength/cardio/mobility sessions. Historical data and
+  legacy `exerciseLog` continue to feed progression and PRs without migration.
+- `mikesfitness/training-settings`: Mike-only next race (`name`, `date`, `distance`).
+- `mikesfitness/coach`: Rupert's note; `mikesfitness/mike-health`: existing health data.
+- `tripData/fitness`: shared events and archived tri plans; preserve Wrightsville history.
+- Use local calendar dates (`toLocalDateStr`), never a UTC timestamp slice for “today”.
+- Plan seeding/re-seeding checks fresh data inside a Firestore transaction. A completed
+  day protects the **entire week**; past weeks are never seeded or regenerated.
+- At release set `VITE_TRAINING_TEMPLATE_EFFECTIVE_DATE` to the actual merge date
+  (`YYYY-MM-DD`) in Vercel Production. Without a valid date the old template remains
+  active. Keep this date fixed across later builds. Only weeks starting on/after it
+  can receive the new template; never rewrite a started week.
+- Draft PR only for issue #1. Claude reviews before a separately authorized merge or
+  deployment. Automatic Git deployments are disabled for `codex/two-day-training`.
 
-## Data Model
+## Commands
 
-Single Firestore document at `mikesfitness/mike-health` containing:
-- `weightEntries[]` — date, weight, waist, notes
-- `labResults[]` — date, marker, value, unit, notes
-- `appointments[]` — type, doctor, date, time, location, status
-- `trainingEvents[]` — race events (half marathon, triathlon)
-- `weeklyCompletions{}` — `{ '2026-W14': { monday: true, ... } }`
-- `dailyChecklist{}` — `{ '2026-04-04': { steps: true, mobility: true, ... } }`
-
-## Important Notes
-
-- Uses same Firebase project as mikeandadam (trip-planner-5cc84)
-- All Firestore writes use `stripUndefined()` pattern (JSON round-trip) to avoid Firestore errors
-- Auth restricted to `mdulin@gmail.com` only
-- Pre-loaded with GI appointment (May 18) and Primary Care (Jul 17)
-- Cardiology, dentist, and dermatology marked as "needs scheduling"
-
-## Dev Commands
-
-```bash
-npm run dev      # Dev server (localhost:5174)
-npm run build    # Production build
-npm run preview  # Preview production build
+```sh
+npm ci
+npm test
+npm run lint
+npm run build
+npm run dev -- --host 127.0.0.1
 ```
 
-## Cross-Project Learning Log
+The development fixture at `/tests/preview/index.html` renders real pages with
+synthetic in-memory data; it is not included in the production build.
 
-A shared learning file lives at `../learning.md` (one level up in the Coding-Projects root). **Read it at session start.** Write new learnings to it before session end, at compaction, and roughly every 30 minutes of active work. Entries should include date, project name, and a concise actionable lesson.
+## Cross-project learning log
 
-## File Scope Boundary
+Read `../learning.md` if present; add concise implementation lessons before finishing.
 
-**CRITICAL: When working on this project, ONLY access files within the `mikesfitness/` directory.** Do not read, write, or reference files from any sibling project folder. If you need something from another project, stop and ask first.
+## File scope
+
+Work inside this repository. The referenced vault training program/template and
+shared learning log are authorized context for this task. Do not modify sibling apps.

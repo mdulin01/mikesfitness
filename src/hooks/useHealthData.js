@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase-config';
-import { doc, setDoc, onSnapshot, deleteField, collection, query, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, deleteField, collection, query, orderBy } from 'firebase/firestore';
 import { COLLECTIONS, FITNESS_EVENT_TYPES } from '../constants';
 import { trainingEvents } from '../data/exercisePlan';
 import { wrightsvilleTriPlan } from '../data/triathlonPlan';
-import { toLocalDateStr } from '../utils/dateUtils';
 
 // Shared fitness data lives in the same Firestore project as mikeandadam.
 // Both apps read/write to `tripData/fitness`. mikesfitness sees ALL events

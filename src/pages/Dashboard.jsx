@@ -13,15 +13,16 @@ export default function Dashboard(props) {
     data, toggleDailyItem, dailyMetricsByDate, lastDailyMetricsSync,
     sharedFitness, training,
   } = props;
-  const { plans, sessions, coach, currentWeekStart } = training;
+  const { plans, sessions, coach, currentWeekStart, nextRace } = training;
   const todayStr = toLocalDateStr();
 
   const readiness = useMemo(() => readinessFrom(dailyMetricsByDate, todayStr), [dailyMetricsByDate, todayStr]);
   const weekPlan = plans[currentWeekStart];
-  const todayPlan = weekPlan?.days?.find(d => d.date === todayStr);
+  const todayPlans = weekPlan?.days?.filter(d => d.date === todayStr) || [];
+  const todayPlan = todayPlans.find(d => d.status === 'planned') || todayPlans[0];
   const dates = weekDates(currentWeekStart);
-  const pillars = useMemo(() => weeklyPillarSummary(sessions, dates), [sessions, dates]);
-  const streaks = useMemo(() => computeStreaks(sessions, dailyMetricsByDate, todayStr), [sessions, dailyMetricsByDate, todayStr]);
+  const pillars = useMemo(() => weeklyPillarSummary(sessions, dates, weekPlan?.days, todayStr), [sessions, dates, weekPlan?.days, todayStr]);
+  const streaks = useMemo(() => computeStreaks(sessions, dailyMetricsByDate, todayStr, Object.values(plans).flatMap(p => p.days || [])), [sessions, dailyMetricsByDate, todayStr, plans]);
 
   const quote = useMemo(() => {
     const dayNum = Math.floor(new Date(todayStr + 'T12:00:00').getTime() / 86400000);
@@ -48,10 +49,10 @@ export default function Dashboard(props) {
       .filter(e => e.date && e.date >= todayStr)
       .map(e => ({ id: e.id, name: e.name, date: e.date, emoji: e.emoji || '🏊', location: e.location }));
     const seen = new Set();
-    return [...shared, ...local]
+    return [...(nextRace && nextRace.date >= todayStr ? [{ ...nextRace, id: 'next-race', emoji: '🏁' }] : []), ...shared, ...local]
       .filter(r => { const k = r.date; if (seen.has(k)) return false; seen.add(k); return true; })
       .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
-  }, [data?.appointments, sharedFitness, todayStr]);
+  }, [data?.appointments, sharedFitness, todayStr, nextRace]);
 
   const checks = data?.dailyChecklist?.[todayStr] || {};
   const habits = [
@@ -74,6 +75,7 @@ export default function Dashboard(props) {
             {todayPlan ? (
               <>
                 <div className="text-xl font-bold text-slate-100 mt-1 truncate">{todayPlan.emoji} {todayPlan.title}</div>
+                {todayPlans.length > 1 && <p className="text-xs text-slate-400 mt-1">{todayPlans.filter(d => d.status === 'done').length}/{todayPlans.length} sessions done today · choose a session in Train</p>}
                 {todayPlan.status === 'done'
                   ? <div className="text-emerald-400 text-sm mt-1 font-semibold">✓ Done — nice work</div>
                   : <Link to="/train" className="inline-block mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">▶ Start session</Link>}
@@ -108,19 +110,21 @@ export default function Dashboard(props) {
             <Link to="/plan" className="text-xs text-blue-400">Edit plan →</Link>
           </div>
           <div className="flex gap-1.5">
-            {weekPlan.days.map((d, i) => {
-              const isToday = d.date === todayStr;
-              const past = d.date < todayStr;
-              return (
-                <div key={i} className={`flex-1 rounded-xl py-2 text-center ${isToday ? 'ring-1 ring-blue-500/60 bg-slate-700/50' : 'bg-slate-900/40'}`}>
-                  <div className="text-[9px] text-slate-500">{d.day.slice(0, 3)}</div>
-                  <div className="text-base">{d.status === 'done' ? '✅' : d.status === 'skipped' ? '⏭️' : past ? '·' : d.emoji}</div>
-                </div>
-              );
+            {dates.map(date => {
+              const days = weekPlan.days.filter(d => d.date === date);
+              const required = days.filter(d => !d.optional);
+              const done = days.filter(d => d.status === 'done').length;
+              const optionalOnly = days.length > 0 && required.length === 0;
+              const complete = required.length > 0 && required.every(d => d.status === 'done');
+              return <div key={date} className={`flex-1 min-w-0 rounded-xl py-2 text-center ${date === todayStr ? 'ring-1 ring-blue-500/60 bg-slate-700/50' : 'bg-slate-900/40'}`}>
+                <div className="text-[9px] text-slate-500">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div className="text-base">{complete ? '✅' : optionalOnly ? '○' : days[0]?.emoji || '·'}</div>
+                <div className="text-[9px] text-slate-500">{optionalOnly ? 'optional' : `${done}/${days.length}`}</div>
+              </div>;
             })}
           </div>
           <div className="flex justify-between mt-3 text-xs text-slate-500">
-            <span>💪 {pillars.strengthSessions}/{fitnessPlan.exerciseTargets.strengthDays} strength</span>
+            <span>💪 {pillars.strengthSessions}/{pillars.requiredStrengthSessions} strength</span>
             <span>🫀 {pillars.enduranceMin}/{fitnessPlan.exerciseTargets.cardioMinutes} cardio min</span>
             <span>🧘 {pillars.mobilityMin}/{fitnessPlan.exerciseTargets.mobilityMinutes} mobility min</span>
           </div>
